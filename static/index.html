@@ -587,6 +587,138 @@
         /* Hidden file input */
         input[type="file"] { display: none; }
         
+        /* Import Review Styles */
+        .import-review-table {
+            width: 100%;
+            font-size: 13px;
+            overflow-x: auto;
+        }
+        
+        .import-row {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: grid;
+            grid-template-columns: 90px 1fr 100px 70px 40px;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .import-row.header {
+            background: rgba(255,255,255,0.05);
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+        
+        .import-row input, .import-row select {
+            padding: 8px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
+        
+        .import-row .delete-btn {
+            background: rgba(244,67,54,0.2);
+            color: #ff6b6b;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .type-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .type-badge.debit { background: rgba(244,67,54,0.2); color: #ff6b6b; }
+        .type-badge.credit { background: rgba(76,175,80,0.2); color: #69f0ae; }
+        
+        /* Field Mapping Styles */
+        .sample-data-box {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            margin-bottom: 16px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .sample-data-box .line {
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .sample-data-box .col {
+            display: inline-block;
+            padding: 2px 8px;
+            margin: 2px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+        
+        .mapping-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .mapping-field {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 12px;
+        }
+        
+        .mapping-field label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        
+        .mapping-field select {
+            width: 100%;
+            padding: 10px;
+            font-size: 14px;
+        }
+        
+        .custom-field-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .custom-field-row input {
+            flex: 1;
+            padding: 10px;
+        }
+        
+        .import-status {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .import-status .count {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .import-status .label {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        
         /* Chat Interface */
         .chat-header {
             display: flex;
@@ -835,6 +967,131 @@
         
         <button class="btn btn-primary" onclick="submitBankData()">Import Data</button>
         <button class="btn btn-secondary" onclick="connectQuickBooks()">Connect QuickBooks</button>
+    </div>
+    
+    <!-- Import: Field Mapping Screen -->
+    <div id="importMapping" class="screen">
+        <div class="page-header">
+            <button class="back-btn" onclick="showScreen('onboarding2')">←</button>
+            <span class="page-title">Define Field Mapping</span>
+        </div>
+        
+        <div class="onboarding-content">
+            <p style="color: var(--text-muted); margin-bottom: 16px;">
+                We couldn't automatically detect all fields. Please help identify them:
+            </p>
+            
+            <div class="sample-data-box" id="sampleDataDisplay"></div>
+            
+            <div class="mapping-grid">
+                <div class="mapping-field">
+                    <label>Date Column</label>
+                    <select id="mapDate">
+                        <option value="">Not in columns</option>
+                    </select>
+                </div>
+                <div class="mapping-field">
+                    <label>Amount Column</label>
+                    <select id="mapAmount">
+                        <option value="">Select...</option>
+                    </select>
+                </div>
+                <div class="mapping-field">
+                    <label>Description Column</label>
+                    <select id="mapDescription">
+                        <option value="">Select...</option>
+                    </select>
+                </div>
+                <div class="mapping-field">
+                    <label>Type Column (Debit/Credit)</label>
+                    <select id="mapSignColumn">
+                        <option value="">All same type</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group" id="signDefaultGroup" style="display:none;">
+                <label>Default transaction type:</label>
+                <div style="display:flex;gap:12px;margin-top:8px;">
+                    <label class="checkbox-item" style="flex:1;justify-content:center;">
+                        <input type="radio" name="defaultSign" value="debit" checked> Debit (expense)
+                    </label>
+                    <label class="checkbox-item" style="flex:1;justify-content:center;">
+                        <input type="radio" name="defaultSign" value="credit"> Credit (income)
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group" id="signValuesGroup" style="display:none;">
+                <label>What values indicate Debit vs Credit?</label>
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                    <input type="text" id="debitValue" placeholder="Debit value (e.g. DR)" style="flex:1;">
+                    <input type="text" id="creditValue" placeholder="Credit value (e.g. CR)" style="flex:1;">
+                </div>
+            </div>
+            
+            <div class="mapping-grid">
+                <div class="mapping-field">
+                    <label>Balance Column (optional)</label>
+                    <select id="mapBalance">
+                        <option value="">None</option>
+                    </select>
+                </div>
+                <div class="mapping-field">
+                    <label>Account Column (optional)</label>
+                    <select id="mapAccount">
+                        <option value="">None</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Custom Fields (optional)</label>
+                <div id="customFields">
+                    <div class="custom-field-row">
+                        <input type="text" id="customField1Name" placeholder="Field name">
+                        <select id="customField1Col"><option value="">Column</option></select>
+                    </div>
+                    <div class="custom-field-row">
+                        <input type="text" id="customField2Name" placeholder="Field name">
+                        <select id="customField2Col"><option value="">Column</option></select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <button class="btn btn-primary" onclick="applyFieldMapping()">Parse with Mapping</button>
+    </div>
+    
+    <!-- Import: Confirmation Screen -->
+    <div id="importConfirm" class="screen">
+        <div class="page-header">
+            <button class="back-btn" onclick="showScreen('onboarding2')">←</button>
+            <span class="page-title">Review Transactions</span>
+        </div>
+        
+        <div class="import-status">
+            <div class="count" id="importCount">0</div>
+            <div class="label">transactions found</div>
+        </div>
+        
+        <p style="text-align:center;color:var(--text-muted);margin-bottom:16px;">
+            Review and fix any issues before importing
+        </p>
+        
+        <div class="onboarding-content">
+            <div class="import-row header">
+                <div>Date</div>
+                <div>Description</div>
+                <div>Amount</div>
+                <div>Type</div>
+                <div></div>
+            </div>
+            <div id="importReviewRows"></div>
+        </div>
+        
+        <button class="btn btn-primary" onclick="confirmImport()">Import All</button>
+        <button class="btn btn-secondary" onclick="showScreen('importMapping')">Fix Field Mapping</button>
     </div>
     
     <!-- Onboarding: Categorize -->
@@ -1165,6 +1422,14 @@
             }
         };
         
+        // Import state
+        let importData = {
+            rawData: '',
+            analysis: null,
+            mapping: null,
+            transactions: []
+        };
+        
         const submitBankData = async () => {
             const pasteData = document.getElementById('pasteArea').value;
             if (!pasteData.trim()) {
@@ -1172,29 +1437,257 @@
                 return;
             }
             
+            importData.rawData = pasteData;
+            
             try {
-                const res = await api('/onboarding/paste-data', 'POST', { data: pasteData });
-                const imp = res.imported;
+                const res = await api('/import/analyze', 'POST', { data: pasteData });
                 
-                let msg = `Imported ${imp.added} transactions!`;
-                if (imp.duplicates > 0) {
-                    msg += `\n${imp.duplicates} duplicates skipped.`;
+                if (res.status === 'needs_mapping') {
+                    // Show field mapping screen
+                    importData.analysis = res.analysis;
+                    showFieldMappingScreen(res.analysis);
+                } else if (res.status === 'parsed') {
+                    // Show confirmation screen
+                    importData.transactions = res.transactions;
+                    importData.mapping = res.detected_mapping;
+                    showImportConfirmScreen(res.transactions);
+                } else {
+                    alert('Unexpected response from server');
                 }
-                if (imp.added === 0 && imp.total_parsed === 0) {
-                    msg = `Couldn't parse any transactions.\n\nTips:\n- Make sure data has a date column\n- Use tab or comma separated values\n- Date headers like "JAN 13, 2026" work too`;
-                    if (imp.debug && imp.debug.length > 0) {
-                        msg += `\n\nDebug: ${imp.debug.slice(-3).join('\n')}`;
-                    }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        };
+        
+        const showFieldMappingScreen = (analysis) => {
+            // Populate sample data display
+            const sampleBox = document.getElementById('sampleDataDisplay');
+            if (analysis.sample_data && analysis.sample_data.length > 0) {
+                sampleBox.innerHTML = analysis.sample_data.slice(0, 5).map(row => {
+                    const cols = row.parts.map((p, i) => 
+                        `<span class="col" title="Column ${i+1}">${p || '(empty)'}</span>`
+                    ).join('');
+                    return `<div class="line">${cols}</div>`;
+                }).join('');
+            } else {
+                sampleBox.innerHTML = '<p>No sample data available</p>';
+            }
+            
+            // Populate column dropdowns
+            const columns = analysis.columns || [];
+            const colOptions = columns.map((c, i) => {
+                const label = c.header || `Column ${i+1}`;
+                const sample = c.sample_values?.[0] || '';
+                return `<option value="${i}">${label} (${sample.substring(0,20)}...)</option>`;
+            }).join('');
+            
+            const dropdowns = ['mapDate', 'mapAmount', 'mapDescription', 'mapSignColumn', 'mapBalance', 'mapAccount', 'customField1Col', 'customField2Col'];
+            dropdowns.forEach(id => {
+                const el = document.getElementById(id);
+                const firstOpt = el.options[0].outerHTML;
+                el.innerHTML = firstOpt + colOptions;
+            });
+            
+            // Pre-select detected columns
+            columns.forEach((col, i) => {
+                if (col.type === 'date' && col.confidence > 70) {
+                    document.getElementById('mapDate').value = i;
+                } else if ((col.type === 'amount' || col.type === 'debit' || col.type === 'credit') && col.confidence > 70) {
+                    document.getElementById('mapAmount').value = i;
+                } else if ((col.type === 'description' || col.type === 'text') && col.confidence > 70) {
+                    document.getElementById('mapDescription').value = i;
+                } else if (col.type === 'balance' && col.confidence > 70) {
+                    document.getElementById('mapBalance').value = i;
                 }
+            });
+            
+            // Handle sign column visibility
+            document.getElementById('mapSignColumn').addEventListener('change', (e) => {
+                if (e.target.value === '') {
+                    document.getElementById('signDefaultGroup').style.display = 'block';
+                    document.getElementById('signValuesGroup').style.display = 'none';
+                } else {
+                    document.getElementById('signDefaultGroup').style.display = 'none';
+                    document.getElementById('signValuesGroup').style.display = 'block';
+                }
+            });
+            
+            showScreen('importMapping');
+        };
+        
+        const applyFieldMapping = async () => {
+            const mapping = {
+                separator: importData.analysis?.separator || '\t',
+                has_header: importData.analysis?.has_header || false,
+                skip_lines: 0,
+                fields: {},
+                custom_fields: []
+            };
+            
+            // Date
+            const dateCol = document.getElementById('mapDate').value;
+            mapping.fields.date = { column: dateCol !== '' ? parseInt(dateCol) : null };
+            
+            // Amount
+            const amountCol = document.getElementById('mapAmount').value;
+            if (amountCol === '') {
+                alert('Please select an amount column');
+                return;
+            }
+            mapping.fields.amount = { column: parseInt(amountCol) };
+            
+            // Description
+            const descCol = document.getElementById('mapDescription').value;
+            mapping.fields.description = { column: descCol !== '' ? parseInt(descCol) : null };
+            
+            // Sign/Type
+            const signCol = document.getElementById('mapSignColumn').value;
+            if (signCol === '') {
+                const defaultSign = document.querySelector('input[name="defaultSign"]:checked')?.value || 'debit';
+                mapping.fields.sign = { default: defaultSign };
+            } else {
+                mapping.fields.sign = { 
+                    column: parseInt(signCol),
+                    debit_value: document.getElementById('debitValue').value || 'DR',
+                    credit_value: document.getElementById('creditValue').value || 'CR'
+                };
+            }
+            
+            // Optional fields
+            const balanceCol = document.getElementById('mapBalance').value;
+            if (balanceCol !== '') {
+                mapping.fields.balance = { column: parseInt(balanceCol) };
+            }
+            
+            const accountCol = document.getElementById('mapAccount').value;
+            if (accountCol !== '') {
+                mapping.fields.account = { column: parseInt(accountCol) };
+            }
+            
+            // Custom fields
+            const cf1Name = document.getElementById('customField1Name').value;
+            const cf1Col = document.getElementById('customField1Col').value;
+            if (cf1Name && cf1Col !== '') {
+                mapping.custom_fields.push({ name: cf1Name, column: parseInt(cf1Col) });
+            }
+            
+            const cf2Name = document.getElementById('customField2Name').value;
+            const cf2Col = document.getElementById('customField2Col').value;
+            if (cf2Name && cf2Col !== '') {
+                mapping.custom_fields.push({ name: cf2Name, column: parseInt(cf2Col) });
+            }
+            
+            importData.mapping = mapping;
+            
+            try {
+                const res = await api('/import/with-mapping', 'POST', { 
+                    data: importData.rawData, 
+                    mapping: mapping 
+                });
                 
-                alert(msg);
+                if (res.transactions && res.transactions.length > 0) {
+                    importData.transactions = res.transactions;
+                    showImportConfirmScreen(res.transactions);
+                } else {
+                    alert('No transactions could be parsed with this mapping. Please adjust.');
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        };
+        
+        const showImportConfirmScreen = (transactions) => {
+            document.getElementById('importCount').textContent = transactions.length;
+            
+            const container = document.getElementById('importReviewRows');
+            container.innerHTML = transactions.map((t, i) => `
+                <div class="import-row" data-id="${t.id}">
+                    <input type="date" value="${t.date || ''}" data-field="date">
+                    <input type="text" value="${t.description || ''}" data-field="description" style="font-size:11px;">
+                    <input type="number" value="${t.amount?.toFixed(2) || ''}" data-field="amount" step="0.01">
+                    <select data-field="type">
+                        <option value="debit" ${t.type === 'debit' ? 'selected' : ''}>Debit</option>
+                        <option value="credit" ${t.type === 'credit' ? 'selected' : ''}>Credit</option>
+                    </select>
+                    <button class="delete-btn" onclick="deleteImportRow(${t.id})">×</button>
+                </div>
+            `).join('');
+            
+            showScreen('importConfirm');
+        };
+        
+        const deleteImportRow = (id) => {
+            const row = document.querySelector(`.import-row[data-id="${id}"]`);
+            if (row) {
+                row.remove();
+                importData.transactions = importData.transactions.filter(t => t.id !== id);
+                document.getElementById('importCount').textContent = importData.transactions.length;
+            }
+        };
+        
+        const confirmImport = async () => {
+            // Collect edits from the UI
+            const rows = document.querySelectorAll('#importReviewRows .import-row');
+            const editedTransactions = [];
+            const edits = [];
+            
+            rows.forEach(row => {
+                const id = parseInt(row.dataset.id);
+                const original = importData.transactions.find(t => t.id === id);
+                if (!original) return;
                 
-                if (imp.added > 0) {
+                const dateInput = row.querySelector('[data-field="date"]').value;
+                const descInput = row.querySelector('[data-field="description"]').value;
+                const amountInput = parseFloat(row.querySelector('[data-field="amount"]').value) || 0;
+                const typeInput = row.querySelector('[data-field="type"]').value;
+                
+                const txn = {
+                    id: id,
+                    date: dateInput,
+                    description: descInput,
+                    amount: amountInput,
+                    type: typeInput,
+                    balance: original.balance,
+                    account: original.account,
+                    category: original.category
+                };
+                editedTransactions.push(txn);
+                
+                // Check if edited
+                if (dateInput !== original.date || 
+                    descInput !== original.description || 
+                    Math.abs(amountInput - original.amount) > 0.01 ||
+                    typeInput !== original.type) {
+                    edits.push({
+                        id: id,
+                        date: dateInput,
+                        description: descInput,
+                        amount: amountInput,
+                        type: typeInput
+                    });
+                }
+            });
+            
+            // Find deleted ones
+            const remainingIds = new Set(editedTransactions.map(t => t.id));
+            const deletedEdits = importData.transactions
+                .filter(t => !remainingIds.has(t.id))
+                .map(t => ({ id: t.id, delete: true }));
+            
+            try {
+                const res = await api('/import/confirm', 'POST', {
+                    transactions: editedTransactions,
+                    edits: [...edits, ...deletedEdits]
+                });
+                
+                alert(res.message || `Saved ${res.saved} transactions!`);
+                
+                if (res.saved > 0) {
                     showScreen('onboarding3');
                     loadSuggestedGroups();
                 }
             } catch (err) {
-                alert(err.message);
+                alert('Error: ' + err.message);
             }
         };
         
