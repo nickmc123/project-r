@@ -4,7 +4,7 @@ Multi-tenant cash flow forecasting
 """
 import os
 import httpx
-from datetime import date
+from datetime import date, datetime
 from typing import Optional, List
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Query, Body
 from fastapi.staticfiles import StaticFiles
@@ -88,7 +88,7 @@ def health():
 
 # Auth
 @app.post("/auth/signup")
-def signup(req: SignupRequest, db: Session = Depends(get_db)):
+def signup(req: SignupRequest, db: Session = Depends(get_db), background_tasks: BackgroundTasks = None):
     existing = db.query(User).filter(User.email == req.email.lower()).first()
     if existing:
         raise HTTPException(status_code=409, detail="Email already exists")
@@ -103,6 +103,21 @@ def signup(req: SignupRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+    
+    # Send signup notification webhook
+    try:
+        webhook_url = os.environ.get("SIGNUP_WEBHOOK_URL")
+        if webhook_url:
+            import httpx
+            httpx.post(webhook_url, json={
+                "event": "new_signup",
+                "email": user.email,
+                "company_name": user.company_name or "(not set)",
+                "company_website": user.company_website or "",
+                "timestamp": datetime.now().isoformat()
+            }, timeout=5)
+    except Exception as e:
+        print(f"Webhook notification failed: {e}")
     
     return {
         "token": create_token(user.id),
