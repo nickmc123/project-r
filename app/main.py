@@ -453,6 +453,130 @@ def delete_all_transactions(user: User = Depends(get_current_user), db: Session 
     db.commit()
     return {"ok": True}
 
+# Ask - Natural Language Q&A
+class AskRequest(BaseModel):
+    question: str
+
+@app.get("/ask")
+async def ask_question_get(
+    question: str = Query(..., description="Natural language question"),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Answer a natural language question about cash flow"""
+    from .services.llm import get_llm_service
+    
+    # Get forecast data for context
+    forecast = compute_forecast(db, user.id, horizon_days=90)
+    
+    # Build data dict for LLM
+    forecast_data = {
+        "current_balance": forecast.get("starting_balance", 0),
+        "status": "HEALTHY",
+        "profit_30d": 0,
+    }
+    
+    if "summary" in forecast:
+        summary = forecast["summary"]["baseline"]
+        forecast_data["low_point"] = {
+            "amount": summary["low_point"]["balance"],
+            "date": summary["low_point"]["date"],
+        }
+        forecast_data["high_point"] = {
+            "amount": summary["high_point"]["balance"],
+            "date": summary["high_point"]["date"],
+        }
+        forecast_data["profit_30d"] = summary.get("monthly_profit", 0)
+        
+        # Determine status
+        low = summary["low_point"]["balance"]
+        if low > 50000:
+            forecast_data["status"] = "HEALTHY"
+        elif low > 10000:
+            forecast_data["status"] = "OK"
+        elif low > 0:
+            forecast_data["status"] = "TIGHT"
+        else:
+            forecast_data["status"] = "CRITICAL"
+    
+    # Get categories
+    groups = get_groups_for_user(db, user.id)
+    forecast_data["categories"] = {
+        g["id"]: {
+            "name": g["name"],
+            "type": "credit" if g["stream_type"] == "inflow" else "debit",
+            "total": g["total"],
+            "net_total": g["net_total"],
+        }
+        for g in groups
+    }
+    
+    # Get answer from LLM service
+    llm = get_llm_service()
+    result = await llm.answer(question, forecast_data)
+    
+    return result
+
+@app.post("/ask")
+async def ask_question_post(
+    req: AskRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Answer a natural language question about cash flow (POST)"""
+    from .services.llm import get_llm_service
+    
+    # Get forecast data for context
+    forecast = compute_forecast(db, user.id, horizon_days=90)
+    
+    # Build data dict for LLM
+    forecast_data = {
+        "current_balance": forecast.get("starting_balance", 0),
+        "status": "HEALTHY",
+        "profit_30d": 0,
+    }
+    
+    if "summary" in forecast:
+        summary = forecast["summary"]["baseline"]
+        forecast_data["low_point"] = {
+            "amount": summary["low_point"]["balance"],
+            "date": summary["low_point"]["date"],
+        }
+        forecast_data["high_point"] = {
+            "amount": summary["high_point"]["balance"],
+            "date": summary["high_point"]["date"],
+        }
+        forecast_data["profit_30d"] = summary.get("monthly_profit", 0)
+        
+        # Determine status
+        low = summary["low_point"]["balance"]
+        if low > 50000:
+            forecast_data["status"] = "HEALTHY"
+        elif low > 10000:
+            forecast_data["status"] = "OK"
+        elif low > 0:
+            forecast_data["status"] = "TIGHT"
+        else:
+            forecast_data["status"] = "CRITICAL"
+    
+    # Get categories
+    groups = get_groups_for_user(db, user.id)
+    forecast_data["categories"] = {
+        g["id"]: {
+            "name": g["name"],
+            "type": "credit" if g["stream_type"] == "inflow" else "debit",
+            "total": g["total"],
+            "net_total": g["net_total"],
+        }
+        for g in groups
+    }
+    
+    # Get answer from LLM service
+    llm = get_llm_service()
+    result = await llm.answer(req.question, forecast_data)
+    
+    return result
+
 # QuickBooks Integration (placeholder)
 @app.get("/integrations/quickbooks/connect")
 def quickbooks_connect(user: User = Depends(get_current_user)):
