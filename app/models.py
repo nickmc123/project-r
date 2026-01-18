@@ -28,6 +28,10 @@ class User(Base):
     onboarding_complete: Mapped[bool] = mapped_column(Boolean, default=False)
     quickbooks_connected: Mapped[bool] = mapped_column(Boolean, default=False)
     
+    # Password reset
+    reset_token: Mapped[str] = mapped_column(String(64), nullable=True)
+    reset_token_expires: Mapped[str] = mapped_column(DateTime, nullable=True)
+    
     created_at: Mapped[str] = mapped_column(DateTime, server_default=func.now())
 
 class Transaction(Base):
