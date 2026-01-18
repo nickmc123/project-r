@@ -644,3 +644,52 @@ def ingest_bank_data(db, user_id: int, data: str, raw_file_id: str = None) -> Di
 def ingest_bank_csv(db, user_id: int, file_content: str, filename: str) -> Dict[str, Any]:
     """Ingest CSV file"""
     return ingest_bank_data(db, user_id, file_content, raw_file_id=filename)
+
+
+def ingest_quickbooks_data(db, user_id: int, qb_data: List[Dict]) -> Dict[str, Any]:
+    """Ingest QuickBooks formatted data"""
+    from ..models import Transaction
+    
+    saved = 0
+    duplicates = 0
+    
+    for item in qb_data:
+        txn_date = item.get("date")
+        if isinstance(txn_date, str):
+            txn_date = parse_date(txn_date) or date.today()
+        
+        amount = item.get("amount", 0)
+        description = item.get("description") or item.get("memo") or item.get("name") or ""
+        
+        # Check for duplicate
+        existing = db.query(Transaction).filter(
+            Transaction.user_id == user_id,
+            Transaction.date == txn_date,
+            Transaction.amount == amount,
+            Transaction.description == description
+        ).first()
+        
+        if existing:
+            duplicates += 1
+            continue
+        
+        new_txn = Transaction(
+            user_id=user_id,
+            date=txn_date,
+            amount=amount,
+            description=description,
+            balance=item.get("balance"),
+            account=item.get("account"),
+            category=item.get("category"),
+            raw_file_id="quickbooks"
+        )
+        db.add(new_txn)
+        saved += 1
+    
+    db.commit()
+    
+    return {
+        "saved": saved,
+        "duplicates": duplicates,
+        "total_parsed": len(qb_data)
+    }
