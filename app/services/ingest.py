@@ -861,3 +861,153 @@ def filter_duplicates(new_txns: List[Dict], existing_txns: List[Dict]) -> List[D
             filtered.append(txn)
     
     return filtered
+
+
+# ============================================================================
+# DATABASE INTEGRATION FUNCTIONS
+# ============================================================================
+
+def ingest_bank_csv(raw_data: str, user_id: int, db) -> Dict[str, Any]:
+    """
+    Parse bank data and store transactions in the database.
+    
+    Args:
+        raw_data: Raw pasted/uploaded bank data
+        user_id: ID of the user
+        db: Database session
+        
+    Returns:
+        Dict with 'imported', 'skipped', 'errors' counts
+    """
+    from ..models import Transaction
+    
+    # Parse the data
+    transactions, debug = parse_web_pasted_data(raw_data)
+    
+    if not transactions:
+        return {
+            'imported': 0,
+            'skipped': 0,
+            'errors': len(debug),
+            'debug': debug
+        }
+    
+    # Get existing transactions to filter duplicates
+    existing = db.query(Transaction).filter(Transaction.user_id == user_id).all()
+    existing_list = [
+        {'date': t.date.isoformat() if t.date else '', 'amount': t.amount, 'description': t.description}
+        for t in existing
+    ]
+    
+    # Filter duplicates
+    new_txns = filter_duplicates(transactions, existing_list)
+    
+    # Insert new transactions
+    imported = 0
+    for txn in new_txns:
+        try:
+            t = Transaction(
+                user_id=user_id,
+                date=date.fromisoformat(txn['date']) if isinstance(txn['date'], str) else txn['date'],
+                amount=txn['amount'],
+                description=txn['description'],
+                balance=txn.get('balance')
+            )
+            db.add(t)
+            imported += 1
+        except Exception as e:
+            debug.append(f"Error inserting transaction: {e}")
+    
+    db.commit()
+    
+    return {
+        'imported': imported,
+        'skipped': len(transactions) - len(new_txns),
+        'total_parsed': len(transactions),
+        'errors': 0,
+        'debug': debug
+    }
+
+
+def ingest_quickbooks_data(data: Dict, user_id: int, db) -> Dict[str, Any]:
+    """
+    Import transactions from QuickBooks data.
+    
+    Args:
+        data: QuickBooks API response data
+        user_id: ID of the user
+        db: Database session
+        
+    Returns:
+        Dict with import statistics
+    """
+    from ..models import Transaction
+    
+    # QuickBooks data format varies - this handles common formats
+    transactions = []
+    
+    # Try to extract transactions from various QuickBooks response formats
+    if isinstance(data, dict):
+        # Check for common QuickBooks report structures
+        if 'Rows' in data:
+            rows = data.get('Rows', {}).get('Row', [])
+            for row in rows:
+                if 'ColData' in row:
+                    cols = row['ColData']
+                    # Try to extract date, description, amount
+                    if len(cols) >= 3:
+                        transactions.append({
+                            'date': cols[0].get('value', ''),
+                            'description': cols[1].get('value', 'QuickBooks Transaction'),
+                            'amount': float(cols[2].get('value', 0) or 0)
+                        })
+        elif 'QueryResponse' in data:
+            # Journal entries or other transactions
+            items = data.get('QueryResponse', {}).get('JournalEntry', [])
+            for item in items:
+                transactions.append({
+                    'date': item.get('TxnDate', date.today().isoformat()),
+                    'description': item.get('DocNumber', 'QuickBooks Entry'),
+                    'amount': float(item.get('TotalAmt', 0) or 0)
+                })
+    
+    if not transactions:
+        return {'imported': 0, 'skipped': 0, 'errors': 0, 'message': 'No transactions found in data'}
+    
+    # Get existing transactions
+    existing = db.query(Transaction).filter(Transaction.user_id == user_id).all()
+    existing_list = [
+        {'date': t.date.isoformat() if t.date else '', 'amount': t.amount, 'description': t.description}
+        for t in existing
+    ]
+    
+    # Filter duplicates
+    new_txns = filter_duplicates(transactions, existing_list)
+    
+    # Insert
+    imported = 0
+    for txn in new_txns:
+        try:
+            txn_date = txn['date']
+            if isinstance(txn_date, str):
+                txn_date = date.fromisoformat(txn_date) if txn_date else date.today()
+            
+            t = Transaction(
+                user_id=user_id,
+                date=txn_date,
+                amount=txn['amount'],
+                description=txn['description']
+            )
+            db.add(t)
+            imported += 1
+        except Exception:
+            pass
+    
+    db.commit()
+    
+    return {
+        'imported': imported,
+        'skipped': len(transactions) - len(new_txns),
+        'total_parsed': len(transactions),
+        'errors': 0
+    }
