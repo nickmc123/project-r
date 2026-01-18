@@ -2,6 +2,8 @@
 PROJECT-R DATA MODELS
 Multi-tenant with offset transaction support
 """
+from typing import Optional
+from datetime import datetime as dt
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import String, Integer, DateTime, Numeric, Boolean, Text, func, UniqueConstraint, ForeignKey
 
@@ -29,8 +31,8 @@ class User(Base):
     quickbooks_connected: Mapped[bool] = mapped_column(Boolean, default=False)
     
     # Password reset
-    reset_token: Mapped[str] = mapped_column(String(64), nullable=True)
-    reset_token_expires: Mapped[str] = mapped_column(DateTime, nullable=True)
+    reset_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, default=None)
+    reset_token_expires: Mapped[Optional[dt]] = mapped_column(DateTime, nullable=True, default=None)
     
     created_at: Mapped[str] = mapped_column(DateTime, server_default=func.now())
 
