@@ -127,121 +127,125 @@ def extract_date_from_line(line: str) -> Optional[date]:
     
     return None
 
-def split_line_smart(line: str) -> List[str]:
-    """
-    Smart split that handles:
-    - Tab separated
-    - Multiple space separated
-    - Single delimiter
-    """
-    # First try tab split
-    if '\t' in line:
-        parts = line.split('\t')
-        return [p.strip() for p in parts if p.strip()]
-    
-    # Try splitting on 2+ spaces (common when tabs converted to spaces)
-    parts = re.split(r'\s{2,}', line)
-    if len(parts) >= 3:
-        return [p.strip() for p in parts if p.strip()]
-    
-    # Try splitting on any whitespace and regrouping
-    # This handles lines like: "ACH DEBIT     5,234.56     123,456.78"
-    words = line.split()
-    if len(words) >= 2:
-        # Find amount-like tokens from the right
-        amounts_right = []
-        desc_words = []
-        
-        for word in reversed(words):
-            amt = parse_amount(word)
-            if amt is not None and len(amounts_right) < 3:
-                amounts_right.insert(0, word)
-            else:
-                desc_words.insert(0, word)
-        
-        if amounts_right:
-            return [' '.join(desc_words)] + amounts_right
-    
-    return [line]
-
 def parse_transaction_line(line: str, current_date: Optional[date]) -> Optional[Dict]:
     """
     Parse a single transaction line.
     Returns dict with date, amount, description, balance or None
+    
+    Handles formats:
+    - Description [Debit] [Credit] [Balance] - most common bank format
+    - Description [Amount] [Balance]
+    - [Date] Description [Amount] [Balance]
     """
     if not line.strip():
         return None
     
-    parts = split_line_smart(line)
+    # Check if line starts with a date
+    words = line.split()
+    line_date = None
+    if words:
+        potential_date = parse_date(words[0])
+        if potential_date:
+            line_date = potential_date
+            line = ' '.join(words[1:])
+            if not line.strip():
+                return None
     
-    if len(parts) < 2:
-        return None
-    
-    # Check if first part is a date
-    line_date = parse_date(parts[0])
-    if line_date:
-        # Date is in first column, shift everything
-        txn_date = line_date
-        parts = parts[1:]
+    # Split line into parts
+    # Try tab split first (preserves empty columns)
+    if '\t' in line:
+        parts = line.split('\t')
     else:
-        txn_date = current_date
+        # Try multi-space split
+        parts = re.split(r'\s{2,}', line)
     
-    if not txn_date:
-        return None
+    if len(parts) < 2:
+        # Try splitting by finding amounts from right
+        words = line.split()
+        amounts_from_right = []
+        desc_words = []
+        
+        for word in reversed(words):
+            amt = parse_amount(word)
+            if amt is not None and len(amounts_from_right) < 3:
+                amounts_from_right.insert(0, word)
+            else:
+                desc_words.insert(0, word)
+        
+        if amounts_from_right:
+            parts = [' '.join(desc_words)] + amounts_from_right
     
     if len(parts) < 2:
         return None
     
-    # Find all amounts in the parts
-    amounts = []
-    desc_parts = []
+    # First part is description
+    description = parts[0].strip()
+    if not description:
+        return None
     
-    for i, part in enumerate(parts):
-        amt = parse_amount(part)
-        if amt is not None:
-            amounts.append((i, amt, part))
+    # Parse amounts from remaining parts, preserving positions
+    raw_amounts = []
+    for p in parts[1:]:
+        p = p.strip()
+        if p:
+            amt = parse_amount(p)
+            raw_amounts.append(amt)  # Could be None if not parseable
         else:
-            desc_parts.append(part)
+            raw_amounts.append(None)  # Empty column marker
+    
+    # Get non-None amounts
+    amounts = [a for a in raw_amounts if a is not None]
     
     if not amounts:
         return None
     
-    description = ' '.join(desc_parts).strip()
+    txn_date = line_date or current_date
+    if not txn_date:
+        return None
     
-    # Determine transaction amount and balance
-    # Common formats:
-    # 1. [Desc] [Amount] [Balance]
-    # 2. [Desc] [Debit] [Credit] [Balance]
-    # 3. [Desc] [Debit] [Credit]
-    # 4. [Date] [Desc] [Amount] [Balance]
-    
+    # Determine transaction amount and balance based on column pattern
     balance = None
     txn_amount = None
     
-    if len(amounts) == 1:
-        # Single amount - it's the transaction
-        txn_amount = amounts[0][1]
-    elif len(amounts) == 2:
-        # Two amounts - could be (amount, balance) or (debit, credit)
-        # If second is larger, probably (txn, balance)
-        if abs(amounts[1][1]) > abs(amounts[0][1]) * 2:
-            txn_amount = amounts[0][1]
-            balance = amounts[1][1]
-        else:
-            # Assume debit/credit format
-            # Whichever is non-zero
-            if amounts[0][1] != 0:
-                txn_amount = -abs(amounts[0][1])  # Debit is negative
+    num_columns = len(raw_amounts)
+    
+    if num_columns >= 3:
+        # Format: [Debit] [Credit] [Balance]
+        # If first column has value, it's debit (negative)
+        # If second column has value, it's credit (positive)
+        # Third (or last) is balance
+        debit = raw_amounts[0]
+        credit = raw_amounts[1] if len(raw_amounts) > 1 else None
+        balance = raw_amounts[-1] if raw_amounts[-1] is not None else None
+        
+        if debit is not None:
+            txn_amount = -abs(debit)  # Debit = money out = negative
+        elif credit is not None:
+            txn_amount = abs(credit)  # Credit = money in = positive
+            
+    elif num_columns == 2:
+        # Could be [Amount, Balance] or [Debit, Credit]
+        first = raw_amounts[0]
+        second = raw_amounts[1]
+        
+        if first is not None and second is not None:
+            # If second is much larger, it's probably balance
+            if abs(second) > abs(first) * 3:
+                txn_amount = first
+                balance = second
             else:
-                txn_amount = abs(amounts[1][1])   # Credit is positive
-    elif len(amounts) >= 3:
-        # Three or more: [debit, credit, balance] most likely
-        # First non-zero of debit/credit is the transaction
-        if amounts[0][1] and amounts[0][1] != 0:
-            txn_amount = -abs(amounts[0][1])
-        elif amounts[1][1] and amounts[1][1] != 0:
-            txn_amount = abs(amounts[1][1])
-        balance = amounts[-1][1]
+                # Assume debit/credit format
+                if first != 0:
+                    txn_amount = -abs(first)  # Debit
+                else:
+                    txn_amount = abs(second)  # Credit
+        elif first is not None:
+            txn_amount = first
+        elif second is not None:
+            txn_amount = second
+            
+    elif num_columns == 1:
+        txn_amount = amounts[0]
     
     if txn_amount is None or txn_amount == 0:
         return None
@@ -300,21 +304,9 @@ def parse_web_pasted_data(text: str) -> Tuple[List[Dict], List[str]]:
         
         if txn:
             transactions.append(txn)
-            debug_log.append(f"Line {i}: PARSED: {txn['description'][:30]} = ${txn['amount']:.2f}")
+            sign = '+' if txn['amount'] > 0 else ''
+            debug_log.append(f"Line {i}: PARSED: {txn['description'][:30]} = {sign}${txn['amount']:.2f}")
         else:
-            # Check if this line has an inline date
-            # Sometimes format is: "01/13/2026  Description  Amount  Balance"
-            parts = split_line_smart(line)
-            if parts and len(parts) >= 3:
-                inline_date = parse_date(parts[0])
-                if inline_date:
-                    # Try parsing with this date
-                    txn = parse_transaction_line('\t'.join(parts[1:]), inline_date)
-                    if txn:
-                        transactions.append(txn)
-                        debug_log.append(f"Line {i}: INLINE DATE PARSED: {txn['description'][:30]} = ${txn['amount']:.2f}")
-                        continue
-            
             debug_log.append(f"Line {i}: SKIPPED: {line[:50]}")
     
     return transactions, debug_log
@@ -331,7 +323,7 @@ def ingest_bank_data(db: Session, user_id: int, content: str, raw_file_id: str =
     debug_log = []
     
     # Try CSV parsing first (if it looks like CSV)
-    if ',' in text and ('\n' in text):
+    if ',' in text and '\n' in text:
         try:
             reader = csv.DictReader(io.StringIO(text))
             headers = [h.lower().strip() for h in (reader.fieldnames or [])]
