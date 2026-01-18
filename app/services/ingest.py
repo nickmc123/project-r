@@ -343,24 +343,47 @@ def parse_with_mapping(data: str, mapping: Dict[str, Any]) -> Tuple[List[Dict], 
         else:
             txn["date"] = current_date
         
-        # Amount (always positive)
+        # Sign and Amount handling
+        # We need to determine both sign and amount together because:
+        # - Sometimes there's a single amount column + separate sign indicator
+        # - Sometimes there are separate debit/credit columns (amount comes from those)
+        sign_cfg = fields.get("sign", {})
         amount_cfg = fields.get("amount", {})
+        
         amount = None
-        if amount_cfg.get("column") is not None:
+        is_debit = True  # Default to debit
+        
+        # Case 1: Separate debit/credit columns (amount AND sign come from these)
+        if sign_cfg.get("debit_column") is not None or sign_cfg.get("credit_column") is not None:
+            debit_col = sign_cfg.get("debit_column")
+            credit_col = sign_cfg.get("credit_column")
+            
+            debit_val = None
+            credit_val = None
+            
+            if debit_col is not None and debit_col < len(parts):
+                debit_val = parse_amount(parts[debit_col])
+            if credit_col is not None and credit_col < len(parts):
+                credit_val = parse_amount(parts[credit_col])
+            
+            # Use whichever has a value
+            if credit_val and not debit_val:
+                is_debit = False
+                amount = credit_val
+            elif debit_val:
+                is_debit = True
+                amount = debit_val
+            elif credit_val:
+                is_debit = False
+                amount = credit_val
+        
+        # Case 2: Separate amount column
+        if amount is None and amount_cfg.get("column") is not None:
             col = amount_cfg["column"]
             if col < len(parts):
                 amount = parse_amount(parts[col])
         
-        if amount is None:
-            debug_log.append(f"Line {i+1}: No amount found, skipping")
-            continue
-        
-        txn["amount"] = amount
-        
-        # Sign (debit/credit)
-        sign_cfg = fields.get("sign", {})
-        is_debit = True  # Default to debit
-        
+        # Case 3: Sign column determines debit/credit
         if sign_cfg.get("column") is not None:
             col = sign_cfg["column"]
             if col < len(parts):
@@ -376,17 +399,13 @@ def parse_with_mapping(data: str, mapping: Dict[str, Any]) -> Tuple[List[Dict], 
                     is_debit = True
         elif sign_cfg.get("default") == "credit":
             is_debit = False
-        elif sign_cfg.get("debit_column") is not None and sign_cfg.get("credit_column") is not None:
-            # Separate debit/credit columns
-            debit_col = sign_cfg["debit_column"]
-            credit_col = sign_cfg["credit_column"]
-            debit_val = parse_amount(parts[debit_col]) if debit_col < len(parts) else None
-            credit_val = parse_amount(parts[credit_col]) if credit_col < len(parts) else None
-            if credit_val and not debit_val:
-                is_debit = False
-                txn["amount"] = credit_val
-            elif debit_val:
-                txn["amount"] = debit_val
+        
+        # Skip if no amount found
+        if amount is None:
+            debug_log.append(f"Line {i+1}: No amount found, skipping")
+            continue
+        
+        txn["amount"] = amount
         
         # Apply sign
         txn["signed_amount"] = -txn["amount"] if is_debit else txn["amount"]
