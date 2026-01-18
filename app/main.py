@@ -221,18 +221,224 @@ async def import_data(data: str = Body(..., embed=True), user: User = Depends(ge
     result = ingest_bank_data(db, user.id, data, raw_file_id="import")
     return {"ok": True, "result": result}
 
+@app.post("/import/analyze")
+async def analyze_import_data(
+    data: str = Body(..., embed=True),
+    user: User = Depends(get_current_user)
+):
+    """
+    Step 1: Analyze data and return either:
+    - Parsed transactions for confirmation (if confident)
+    - Data structure analysis for user field mapping (if not confident)
+    """
+    from .services.ingest import auto_parse_data
+    
+    transactions, analysis, debug_log = auto_parse_data(data)
+    
+    if analysis.get("needs_user_input"):
+        # Return analysis so user can define field mapping
+        return {
+            "ok": True,
+            "status": "needs_mapping",
+            "message": "Please help identify the fields in your data",
+            "analysis": {
+                "columns": analysis.get("columns", []),
+                "sample_data": analysis.get("sample_data", []),
+                "separator": analysis.get("separator"),
+                "has_header": analysis.get("has_header"),
+                "num_columns": analysis.get("num_columns"),
+                "total_rows": analysis.get("total_rows")
+            },
+            "debug": debug_log
+        }
+    else:
+        # Return parsed transactions for confirmation
+        return {
+            "ok": True,
+            "status": "parsed",
+            "message": f"Found {len(transactions)} transactions - please confirm",
+            "transactions": [
+                {
+                    "id": i,
+                    "date": t["date"].isoformat() if t.get("date") else None,
+                    "amount": abs(t.get("signed_amount", t["amount"])),
+                    "type": t.get("type", "debit"),
+                    "description": t.get("description", ""),
+                    "balance": t.get("balance"),
+                    "account": t.get("account"),
+                    "category": t.get("category"),
+                    "raw_line": t.get("raw_line", "")
+                }
+                for i, t in enumerate(transactions)
+            ],
+            "detected_mapping": analysis.get("detected_mapping"),
+            "debug": debug_log
+        }
+
+@app.post("/import/with-mapping")
+async def import_with_mapping(
+    data: str = Body(...),
+    mapping: dict = Body(...),
+    user: User = Depends(get_current_user)
+):
+    """
+    Parse data using user-defined field mapping.
+    Returns transactions for confirmation.
+    """
+    from .services.ingest import parse_with_mapping
+    
+    transactions, debug_log = parse_with_mapping(data, mapping)
+    
+    return {
+        "ok": True,
+        "status": "parsed",
+        "message": f"Parsed {len(transactions)} transactions with your mapping",
+        "transactions": [
+            {
+                "id": i,
+                "date": t["date"].isoformat() if t.get("date") else None,
+                "amount": abs(t.get("signed_amount", t["amount"])),
+                "type": t.get("type", "debit"),
+                "description": t.get("description", ""),
+                "balance": t.get("balance"),
+                "account": t.get("account"),
+                "category": t.get("category"),
+                "raw_line": t.get("raw_line", "")
+            }
+            for i, t in enumerate(transactions)
+        ],
+        "mapping_used": mapping,
+        "debug": debug_log
+    }
+
+class TransactionEdit(BaseModel):
+    id: int
+    date: Optional[str] = None
+    amount: Optional[float] = None
+    type: Optional[str] = None  # "debit" or "credit"
+    description: Optional[str] = None
+    account: Optional[str] = None
+    category: Optional[str] = None
+    delete: Optional[bool] = False
+
+class ConfirmImportRequest(BaseModel):
+    transactions: List[dict]
+    edits: Optional[List[TransactionEdit]] = None
+
+@app.post("/import/confirm")
+async def confirm_import(
+    request: ConfirmImportRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Confirm and save transactions after user review.
+    Accepts optional edits to fix any issues.
+    """
+    from datetime import datetime
+    
+    transactions = request.transactions
+    edits = {e.id: e for e in (request.edits or [])}
+    
+    saved = 0
+    duplicates = 0
+    deleted = 0
+    
+    for txn in transactions:
+        txn_id = txn.get("id")
+        
+        # Check if user marked for deletion
+        if txn_id in edits and edits[txn_id].delete:
+            deleted += 1
+            continue
+        
+        # Apply any edits
+        if txn_id in edits:
+            edit = edits[txn_id]
+            if edit.date:
+                txn["date"] = edit.date
+            if edit.amount is not None:
+                txn["amount"] = edit.amount
+            if edit.type:
+                txn["type"] = edit.type
+            if edit.description:
+                txn["description"] = edit.description
+            if edit.account:
+                txn["account"] = edit.account
+            if edit.category:
+                txn["category"] = edit.category
+        
+        # Parse date
+        txn_date = None
+        if txn.get("date"):
+            if isinstance(txn["date"], str):
+                try:
+                    txn_date = datetime.fromisoformat(txn["date"]).date()
+                except:
+                    txn_date = datetime.now().date()
+            else:
+                txn_date = txn["date"]
+        else:
+            txn_date = datetime.now().date()
+        
+        # Calculate signed amount
+        amount = txn.get("amount", 0)
+        if txn.get("type") == "debit":
+            signed_amount = -abs(amount)
+        else:
+            signed_amount = abs(amount)
+        
+        # Check for duplicate
+        existing = db.query(Transaction).filter(
+            Transaction.user_id == user.id,
+            Transaction.date == txn_date,
+            Transaction.amount == signed_amount,
+            Transaction.description == txn.get("description", "")
+        ).first()
+        
+        if existing:
+            duplicates += 1
+            continue
+        
+        # Save new transaction
+        new_txn = Transaction(
+            user_id=user.id,
+            date=txn_date,
+            amount=signed_amount,
+            description=txn.get("description", ""),
+            balance=txn.get("balance"),
+            account=txn.get("account"),
+            category=txn.get("category")
+        )
+        db.add(new_txn)
+        saved += 1
+    
+    db.commit()
+    
+    return {
+        "ok": True,
+        "saved": saved,
+        "duplicates": duplicates,
+        "deleted": deleted,
+        "message": f"Saved {saved} transactions" + (f", {duplicates} duplicates skipped" if duplicates else "") + (f", {deleted} removed" if deleted else "")
+    }
+
 @app.post("/import/debug")
 async def import_data_debug(data: str = Body(..., embed=True), user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Import with full debug output - doesn't save to DB"""
-    from .services.ingest import parse_web_pasted_data
-    transactions, debug_log = parse_web_pasted_data(data)
+    from .services.ingest import auto_parse_data
+    transactions, analysis, debug_log = auto_parse_data(data)
     return {
         "ok": True,
         "parsed_count": len(transactions),
+        "needs_user_input": analysis.get("needs_user_input", False),
+        "analysis": analysis,
         "transactions": [
             {
                 "date": t["date"].isoformat() if t.get("date") else None,
-                "amount": t["amount"],
+                "amount": t.get("amount"),
+                "signed_amount": t.get("signed_amount"),
+                "type": t.get("type"),
                 "description": t.get("description", "")[:50] if t.get("description") else "",
                 "balance": t.get("balance")
             }
