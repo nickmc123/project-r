@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#FF6B00">
+    <title>Project-R | Cash Flow Forecasting</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icon-192.png">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --primary: #FF6B00;
+            --primary-light: #FF8A65;
+            --bg: #1a1a2e;
+            --card-bg: rgba(255,255,255,0.08);
+            --text: #fff;
+            --text-muted: rgba(255,255,255,0.7);
+            --success: #4CAF50;
+            --danger: #f44336;
+            --warning: #FF9800;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--bg) 0%, #16213e 100%);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .screen { display: none; min-height: 100vh; padding: 20px; }
+        .screen.active { display: flex; flex-direction: column; }
+        
+        /* Auth Screen */
+        .auth-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .logo-large {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        
+        .app-title {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        
+        .app-subtitle {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-bottom: 40px;
+        }
+        
+        .auth-form {
+            width: 100%;
+            max-width: 320px;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+            color: var(--text-muted);
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            background: var(--card-bg);
+            color: var(--text);
+            font-size: 16px;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+        }
+        
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            margin-top: 12px;
+        }
+        
+        .auth-toggle {
+            margin-top: 24px;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        
+        .auth-toggle a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        /* Onboarding */
+        .onboarding-header {
+            text-align: center;
+            padding: 20px 0;
+        }
+        
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .step-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .step-dot.active {
+            background: var(--primary);
+        }
+        
+        .step-dot.complete {
+            background: var(--success);
+        }
+        
+        .onboarding-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .onboarding-subtitle {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        
+        .onboarding-content {
+            flex: 1;
+            padding: 20px 0;
+        }
+        
+        /* Data Upload */
+        .upload-zone {
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 16px;
+            padding: 40px 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(255,107,0,0.1);
+        }
+        
+        .upload-icon { font-size: 48px; margin-bottom: 16px; }
+        
+        .upload-text { color: var(--text-muted); margin-bottom: 8px; }
+        
+        .paste-area {
+            width: 100%;
+            min-height: 200px;
+            padding: 16px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            background: var(--card-bg);
+            color: var(--text);
+            font-size: 14px;
+            font-family: monospace;
+            resize: vertical;
+        }
+        
+        .or-divider {
+            display: flex;
+            align-items: center;
+            margin: 20px 0;
+            color: var(--text-muted);
+        }
+        
+        .or-divider::before, .or-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .or-divider span { padding: 0 16px; }
+        
+        /* Transaction Groups */
+        .group-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .group-name {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        
+        .group-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .badge-inflow { background: rgba(76,175,80,0.2); color: var(--success); }
+        .badge-outflow { background: rgba(244,67,54,0.2); color: var(--danger); }
+        
+        .group-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        
+        .group-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .group-actions button {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+        }
+        
+        /* Dashboard */
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0 20px;
+        }
+        
+        .company-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+        }
+        
+        .balance-card {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .balance-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+        
+        .balance-amount {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        
+        .balance-status {
+            font-size: 14px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-top: 8px;
+        }
+        
+        .status-healthy { background: rgba(76,175,80,0.3); }
+        .status-tight { background: rgba(255,152,0,0.3); }
+        .status-critical { background: rgba(244,67,54,0.3); }
+        
+        .stats-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            flex: 1;
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+        }
+        
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        
+        .stat-value {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        
+        .stat-date {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        
+        .action-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        
+        .action-btn {
+            background: var(--card-bg);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 20px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .action-btn:active {
+            transform: scale(0.98);
+            background: rgba(255,107,0,0.2);
+        }
+        
+        .action-icon { font-size: 28px; margin-bottom: 8px; }
+        .action-label { font-size: 13px; font-weight: 600; }
+        
+        /* Forecast View */
+        .forecast-header {
+            display: flex;
+            align-items: center;
+            padding: 10px 0 20px;
+        }
+        
+        .back-btn {
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+            margin-right: 8px;
+        }
+        
+        .forecast-title {
+            font-size: 20px;
+            font-weight: 700;
+        }
+        
+        .forecast-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .forecast-week {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        
+        .week-date {
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        
+        .week-flows {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+        
+        .flow-item {
+            flex: 1;
+        }
+        
+        .flow-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        
+        .flow-amount {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .flow-amount.inflow { color: var(--success); }
+        .flow-amount.outflow { color: var(--danger); }
+        
+        .week-balance {
+            padding-top: 12px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .week-balance .flow-amount {
+            font-size: 20px;
+        }
+        
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .modal-overlay.active { display: flex; }
+        
+        .modal {
+            background: var(--bg);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .modal-title { font-size: 18px; font-weight: 700; }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 24px;
+            cursor: pointer;
+        }
+        
+        .modal-body { padding: 20px; }
+        
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        /* Select Dropdown */
+        select {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            background: var(--card-bg);
+            color: var(--text);
+            font-size: 16px;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+        }
+        
+        /* Checkbox */
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+        
+        .checkbox-item input {
+            margin-right: 12px;
+            width: 18px;
+            height: 18px;
+        }
+        
+        /* Error/Success Messages */
+        .message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        
+        .message-error {
+            background: rgba(244,67,54,0.2);
+            color: #ff6b6b;
+        }
+        
+        .message-success {
+            background: rgba(76,175,80,0.2);
+            color: #69f0ae;
+        }
+        
+        /* Loading Spinner */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Hidden file input */
+        input[type="file"] { display: none; }
+    </style>
+</head>
+<body>
+    <!-- Auth Screen -->
+    <div id="authScreen" class="screen active">
+        <div class="auth-container">
+            <div class="logo-large">📊</div>
+            <h1 class="app-title">Project-R</h1>
+            <p class="app-subtitle">Smart Cash Flow Forecasting</p>
+            
+            <form class="auth-form" id="authForm">
+                <div id="authMessage"></div>
+                
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="authEmail" required placeholder="you@company.com">
+                </div>
+                
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="authPassword" required placeholder="••••••••">
+                </div>
+                
+                <div class="form-group" id="companyGroup" style="display:none;">
+                    <label>Company Name</label>
+                    <input type="text" id="authCompany" placeholder="Your Company">
+                </div>
+                
+                <button type="submit" class="btn btn-primary" id="authSubmit">Log In</button>
+            </form>
+            
+            <p class="auth-toggle">
+                <span id="authToggleText">Don't have an account?</span>
+                <a href="#" id="authToggle">Sign Up</a>
+            </p>
+        </div>
+    </div>
+    
+    <!-- Onboarding: Company Info -->
+    <div id="onboarding1" class="screen">
+        <div class="onboarding-header">
+            <div class="step-indicator">
+                <div class="step-dot active"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+            </div>
+            <h2 class="onboarding-title">Let's get started</h2>
+            <p class="onboarding-subtitle">Tell us about your business</p>
+        </div>
+        
+        <div class="onboarding-content">
+            <div class="form-group">
+                <label>Company Name</label>
+                <input type="text" id="companyName" placeholder="Acme Inc.">
+            </div>
+            
+            <div class="form-group">
+                <label>Company Website (optional)</label>
+                <input type="text" id="companyWebsite" placeholder="acme.com">
+            </div>
+            
+            <p style="color: var(--text-muted); font-size: 13px; margin-top: 20px;">
+                We'll try to fetch your logo and brand colors from your website.
+            </p>
+        </div>
+        
+        <button class="btn btn-primary" onclick="submitCompanyInfo()">Continue</button>
+    </div>
+    
+    <!-- Onboarding: Upload Data -->
+    <div id="onboarding2" class="screen">
+        <div class="onboarding-header">
+            <div class="step-indicator">
+                <div class="step-dot complete"></div>
+                <div class="step-dot active"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+            </div>
+            <h2 class="onboarding-title">Import your data</h2>
+            <p class="onboarding-subtitle">Upload 90 days of bank transactions</p>
+        </div>
+        
+        <div class="onboarding-content">
+            <div class="upload-zone" id="uploadZone">
+                <div class="upload-icon">📁</div>
+                <p class="upload-text">Tap to upload CSV file</p>
+                <p style="font-size: 12px; color: var(--text-muted);">or drag & drop</p>
+            </div>
+            <input type="file" id="fileInput" accept=".csv,.txt">
+            
+            <div class="or-divider"><span>OR</span></div>
+            
+            <div class="form-group">
+                <label>Paste bank data</label>
+                <textarea class="paste-area" id="pasteArea" placeholder="Copy and paste transactions from your bank website..."></textarea>
+            </div>
+        </div>
+        
+        <button class="btn btn-primary" onclick="submitBankData()">Import Data</button>
+        <button class="btn btn-secondary" onclick="connectQuickBooks()">Connect QuickBooks</button>
+    </div>
+    
+    <!-- Onboarding: Categorize -->
+    <div id="onboarding3" class="screen">
+        <div class="onboarding-header">
+            <div class="step-indicator">
+                <div class="step-dot complete"></div>
+                <div class="step-dot complete"></div>
+                <div class="step-dot active"></div>
+                <div class="step-dot"></div>
+            </div>
+            <h2 class="onboarding-title">Categorize transactions</h2>
+            <p class="onboarding-subtitle">We've grouped similar transactions. Review and name each group.</p>
+        </div>
+        
+        <div class="onboarding-content" id="groupsList">
+            <div class="spinner"></div>
+        </div>
+        
+        <button class="btn btn-primary" onclick="finishCategorization()">Continue</button>
+    </div>
+    
+    <!-- Onboarding: Trends -->
+    <div id="onboarding4" class="screen">
+        <div class="onboarding-header">
+            <div class="step-indicator">
+                <div class="step-dot complete"></div>
+                <div class="step-dot complete"></div>
+                <div class="step-dot complete"></div>
+                <div class="step-dot active"></div>
+            </div>
+            <h2 class="onboarding-title">Future expectations</h2>
+            <p class="onboarding-subtitle">Tell us about expected trends</p>
+        </div>
+        
+        <div class="onboarding-content" id="trendsList">
+            <p style="color: var(--text-muted); margin-bottom: 16px;">
+                Based on your history, we've detected some trends. Let us know if you expect them to continue, flatten, or reverse.
+            </p>
+            <div id="trendsContent"></div>
+        </div>
+        
+        <button class="btn btn-primary" onclick="completeOnboarding()">Finish Setup</button>
+    </div>
+    
+    <!-- Dashboard -->
+    <div id="dashboard" class="screen">
+        <div class="dashboard-header">
+            <div class="company-logo" id="companyLogo">P</div>
+            <div style="flex:1; margin-left:12px;">
+                <div style="font-weight:600;" id="dashCompanyName">Your Company</div>
+                <div style="font-size:12px; color:var(--text-muted);">Cash Flow Forecast</div>
+            </div>
+            <button style="background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;" onclick="showSettings()">⚙️</button>
+        </div>
+        
+        <div class="balance-card" onclick="showBalanceUpdate()">
+            <div class="balance-label">Current Balance</div>
+            <div class="balance-amount" id="currentBalance">$0</div>
+            <div class="balance-status status-healthy" id="statusBadge">LOADING...</div>
+        </div>
+        
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Low Point</div>
+                <div class="stat-value" id="lowPoint">—</div>
+                <div class="stat-date" id="lowPointDate"></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">High Point</div>
+                <div class="stat-value" id="highPoint">—</div>
+                <div class="stat-date" id="highPointDate"></div>
+            </div>
+        </div>
+        
+        <div class="stat-card" style="margin-bottom:20px;">
+            <div class="stat-label">30-Day Profit</div>
+            <div class="stat-value" id="monthlyProfit">—</div>
+        </div>
+        
+        <div class="action-grid">
+            <div class="action-btn" onclick="showForecast(15)">
+                <div class="action-icon">📈</div>
+                <div class="action-label">15-Day Forecast</div>
+            </div>
+            <div class="action-btn" onclick="showForecast(30)">
+                <div class="action-icon">📊</div>
+                <div class="action-label">30-Day Forecast</div>
+            </div>
+            <div class="action-btn" onclick="showGroups()">
+                <div class="action-icon">📋</div>
+                <div class="action-label">Categories</div>
+            </div>
+            <div class="action-btn" onclick="showTransactions()">
+                <div class="action-icon">💳</div>
+                <div class="action-label">Transactions</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Forecast View -->
+    <div id="forecastView" class="screen">
+        <div class="forecast-header">
+            <button class="back-btn" onclick="showDashboard()">←</button>
+            <h2 class="forecast-title" id="forecastTitle">Forecast</h2>
+        </div>
+        
+        <div class="forecast-list" id="forecastList"></div>
+    </div>
+    
+    <!-- Category Modal -->
+    <div class="modal-overlay" id="categoryModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">Categorize Group</span>
+                <button class="modal-close" onclick="closeCategoryModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Group Name</label>
+                    <input type="text" id="groupNameInput">
+                </div>
+                
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="categorySelect"></select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Frequency</label>
+                    <select id="frequencySelect">
+                        <option value="daily">Daily (most business days)</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="semimonthly">Semi-monthly (twice per month)</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="uncommon">Uncommon/One-time</option>
+                    </select>
+                </div>
+                
+                <div class="checkbox-item">
+                    <input type="checkbox" id="allowOffsetsCheck">
+                    <label for="allowOffsetsCheck">Allow offsets (e.g., chargebacks, rebates)</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveCategoryModal()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let token = localStorage.getItem('projectr_token');
+        let user = null;
+        let isSignUp = false;
+        let suggestedGroups = [];
+        let currentGroupIndex = 0;
+        let categories = { inflow: [], outflow: [] };
+        
+        // API
+        const api = async (endpoint, method = 'GET', body = null) => {
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            
+            const opts = { method, headers };
+            if (body) opts.body = JSON.stringify(body);
+            
+            const res = await fetch(endpoint, opts);
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Request failed');
+            }
+            return res.json();
+        };
+        
+        // Format currency
+        const fmt = (n) => {
+            if (n === null || n === undefined) return '—';
+            const prefix = n < 0 ? '-' : '';
+            return prefix + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        };
+        
+        // Show screen
+        const showScreen = (id) => {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        };
+        
+        // Auth
+        document.getElementById('authToggle').onclick = (e) => {
+            e.preventDefault();
+            isSignUp = !isSignUp;
+            document.getElementById('authSubmit').textContent = isSignUp ? 'Create Account' : 'Log In';
+            document.getElementById('authToggleText').textContent = isSignUp ? 'Already have an account?' : "Don't have an account?";
+            document.getElementById('authToggle').textContent = isSignUp ? 'Log In' : 'Sign Up';
+            document.getElementById('companyGroup').style.display = isSignUp ? 'block' : 'none';
+        };
+        
+        document.getElementById('authForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            const company = document.getElementById('authCompany').value;
+            
+            try {
+                const endpoint = isSignUp ? '/auth/signup' : '/auth/login';
+                const body = isSignUp ? { email, password, company_name: company } : { email, password };
+                const res = await api(endpoint, 'POST', body);
+                
+                token = res.token;
+                user = res.user;
+                localStorage.setItem('projectr_token', token);
+                
+                if (user.onboarding_complete) {
+                    showScreen('dashboard');
+                    loadDashboard();
+                } else if (user.onboarding_step >= 2) {
+                    showScreen('onboarding3');
+                    loadSuggestedGroups();
+                } else if (user.onboarding_step >= 1) {
+                    showScreen('onboarding2');
+                } else {
+                    showScreen('onboarding1');
+                    document.getElementById('companyName').value = user.company_name || '';
+                }
+            } catch (err) {
+                document.getElementById('authMessage').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        // Onboarding Step 1: Company Info
+        const submitCompanyInfo = async () => {
+            try {
+                await api('/onboarding/company', 'POST', {
+                    company_name: document.getElementById('companyName').value,
+                    company_website: document.getElementById('companyWebsite').value
+                });
+                showScreen('onboarding2');
+            } catch (err) {
+                alert(err.message);
+            }
+        };
+        
+        // Onboarding Step 2: Data Upload
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        
+        uploadZone.onclick = () => fileInput.click();
+        
+        uploadZone.ondragover = (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); };
+        uploadZone.ondragleave = () => uploadZone.classList.remove('dragover');
+        uploadZone.ondrop = (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                uploadFile();
+            }
+        };
+        
+        fileInput.onchange = () => uploadFile();
+        
+        const uploadFile = async () => {
+            const file = fileInput.files[0];
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const res = await fetch('/onboarding/upload-data', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                
+                if (!res.ok) throw new Error('Upload failed');
+                const data = await res.json();
+                
+                alert(`Imported ${data.imported.added} transactions!`);
+                showScreen('onboarding3');
+                loadSuggestedGroups();
+            } catch (err) {
+                alert(err.message);
+            }
+        };
+        
+        const submitBankData = async () => {
+            const pasteData = document.getElementById('pasteArea').value;
+            if (!pasteData.trim()) {
+                alert('Please paste some data or upload a file');
+                return;
+            }
+            
+            try {
+                const res = await api('/onboarding/paste-data', 'POST', { data: pasteData });
+                alert(`Imported ${res.imported.added} transactions!`);
+                showScreen('onboarding3');
+                loadSuggestedGroups();
+            } catch (err) {
+                alert(err.message);
+            }
+        };
+        
+        const connectQuickBooks = () => {
+            alert('QuickBooks integration coming soon!');
+        };
+        
+        // Onboarding Step 3: Categorization
+        const loadSuggestedGroups = async () => {
+            try {
+                const cats = await api('/categories');
+                categories = cats;
+                
+                const data = await api('/onboarding/suggest-groups');
+                suggestedGroups = data.groups;
+                
+                renderGroups();
+            } catch (err) {
+                document.getElementById('groupsList').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const renderGroups = () => {
+            const container = document.getElementById('groupsList');
+            
+            if (!suggestedGroups.length) {
+                container.innerHTML = '<p style="color:var(--text-muted);text-align:center;">No transaction groups detected. Upload more data or continue.</p>';
+                return;
+            }
+            
+            container.innerHTML = suggestedGroups.map((g, i) => `
+                <div class="group-card" data-index="${i}">
+                    <div class="group-header">
+                        <span class="group-name">${g.suggested_name || 'Unnamed Group'}</span>
+                        <span class="group-badge ${g.stream_type === 'inflow' ? 'badge-inflow' : 'badge-outflow'}">
+                            ${g.stream_type === 'inflow' ? '↑ Income' : '↓ Expense'}
+                        </span>
+                    </div>
+                    <div class="group-stats">
+                        <span>${g.count} transactions</span>
+                        <span>Avg: ${fmt(g.avg_amount)}</span>
+                        <span>${g.frequency}</span>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">
+                        Sample: ${g.sample_description?.substring(0, 50) || '—'}...
+                    </div>
+                    <div class="group-actions">
+                        <button onclick="categorizeGroup(${i})">Categorize</button>
+                        <button onclick="skipGroup(${i})">Skip</button>
+                    </div>
+                </div>
+            `).join('');
+        };
+        
+        let currentGroupForModal = null;
+        
+        const categorizeGroup = (index) => {
+            currentGroupForModal = index;
+            const group = suggestedGroups[index];
+            
+            // Populate category select
+            const catSelect = document.getElementById('categorySelect');
+            const cats = group.stream_type === 'inflow' ? categories.inflow : categories.outflow;
+            catSelect.innerHTML = cats.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+            
+            document.getElementById('groupNameInput').value = group.suggested_name || '';
+            document.getElementById('frequencySelect').value = group.frequency || 'monthly';
+            document.getElementById('allowOffsetsCheck').checked = group.has_mixed_signs || false;
+            
+            document.getElementById('categoryModal').classList.add('active');
+        };
+        
+        const closeCategoryModal = () => {
+            document.getElementById('categoryModal').classList.remove('active');
+            currentGroupForModal = null;
+        };
+        
+        const saveCategoryModal = async () => {
+            if (currentGroupForModal === null) return;
+            
+            const group = suggestedGroups[currentGroupForModal];
+            
+            try {
+                await api('/groups', 'POST', {
+                    name: document.getElementById('groupNameInput').value,
+                    description: group.sample_description || '',
+                    category: document.getElementById('categorySelect').value,
+                    stream_type: group.stream_type,
+                    frequency: document.getElementById('frequencySelect').value,
+                    transaction_ids: group.transaction_ids,
+                    allow_offsets: document.getElementById('allowOffsetsCheck').checked
+                });
+                
+                // Remove from list
+                suggestedGroups.splice(currentGroupForModal, 1);
+                renderGroups();
+                closeCategoryModal();
+            } catch (err) {
+                alert(err.message);
+            }
+        };
+        
+        const skipGroup = (index) => {
+            suggestedGroups.splice(index, 1);
+            renderGroups();
+        };
+        
+        const finishCategorization = () => {
+            showScreen('onboarding4');
+            loadTrends();
+        };
+        
+        // Onboarding Step 4: Trends
+        const loadTrends = async () => {
+            try {
+                const groups = await api('/groups');
+                const container = document.getElementById('trendsContent');
+                
+                if (!groups.length) {
+                    container.innerHTML = '<p style="color:var(--text-muted);">No groups to analyze yet.</p>';
+                    return;
+                }
+                
+                // For each group, get trend
+                let html = '';
+                for (const g of groups.slice(0, 5)) {  // Limit to 5
+                    const trend = await api(`/groups/${g.id}/trend`);
+                    
+                    const trendIcon = trend.trend === 'up' ? '↗️' : trend.trend === 'down' ? '↘️' : '→';
+                    const trendText = trend.trend === 'up' ? `+${trend.pct_per_month}%/mo` : 
+                                     trend.trend === 'down' ? `${trend.pct_per_month}%/mo` : 'Flat';
+                    
+                    html += `
+                        <div class="group-card">
+                            <div class="group-header">
+                                <span class="group-name">${g.name}</span>
+                                <span>${trendIcon} ${trendText}</span>
+                            </div>
+                            <div class="form-group" style="margin-top:12px;margin-bottom:0;">
+                                <label>Expected trend</label>
+                                <select onchange="setTrendSentiment(${g.id}, this.value)">
+                                    <option value="continue" ${trend.trend !== 'flat' ? 'selected' : ''}>Continue current trend</option>
+                                    <option value="flatten" ${trend.trend === 'flat' ? 'selected' : ''}>Flatten out</option>
+                                    <option value="reverse">Reverse direction</option>
+                                </select>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                container.innerHTML = html || '<p style="color:var(--text-muted);">No significant trends detected.</p>';
+            } catch (err) {
+                document.getElementById('trendsContent').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const setTrendSentiment = async (groupId, direction) => {
+            try {
+                await api('/trends/sentiment', 'POST', {
+                    group_id: groupId,
+                    expected_direction: direction,
+                    expected_change_pct: 0
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        
+        const completeOnboarding = async () => {
+            try {
+                await api('/onboarding/complete', 'POST');
+                showScreen('dashboard');
+                loadDashboard();
+            } catch (err) {
+                alert(err.message);
+            }
+        };
+        
+        // Dashboard
+        const loadDashboard = async () => {
+            try {
+                const me = await api('/me');
+                document.getElementById('dashCompanyName').textContent = me.company_name || 'Your Company';
+                document.getElementById('companyLogo').textContent = (me.company_name || 'P')[0].toUpperCase();
+                
+                const summary = await api('/summary');
+                
+                if (summary.error) {
+                    document.getElementById('currentBalance').textContent = '$0';
+                    document.getElementById('statusBadge').textContent = 'NO DATA';
+                    return;
+                }
+                
+                document.getElementById('currentBalance').textContent = fmt(summary.current_balance);
+                document.getElementById('lowPoint').textContent = fmt(summary.low_point?.balance);
+                document.getElementById('lowPointDate').textContent = summary.low_point?.date || '';
+                document.getElementById('highPoint').textContent = fmt(summary.high_point?.balance);
+                document.getElementById('highPointDate').textContent = summary.high_point?.date || '';
+                document.getElementById('monthlyProfit').textContent = fmt(summary.monthly_profit);
+                
+                const status = summary.status || 'HEALTHY';
+                const badge = document.getElementById('statusBadge');
+                badge.textContent = status;
+                badge.className = 'balance-status status-' + status.toLowerCase();
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        
+        const showDashboard = () => {
+            showScreen('dashboard');
+            loadDashboard();
+        };
+        
+        // Forecast
+        const showForecast = async (days) => {
+            showScreen('forecastView');
+            document.getElementById('forecastTitle').textContent = `${days}-Day Forecast`;
+            document.getElementById('forecastList').innerHTML = '<div class="spinner"></div>';
+            
+            try {
+                const data = await api(`/forecast?horizon_days=${days}`);
+                
+                if (data.error) {
+                    document.getElementById('forecastList').innerHTML = `<div class="message message-error">${data.error}</div>`;
+                    return;
+                }
+                
+                const series = data.baseline_series || [];
+                
+                document.getElementById('forecastList').innerHTML = series.map(week => `
+                    <div class="forecast-week">
+                        <div class="week-date">Week of ${week.week}</div>
+                        <div class="week-flows">
+                            <div class="flow-item">
+                                <div class="flow-label">Inflow</div>
+                                <div class="flow-amount inflow">+${fmt(week.inflow)}</div>
+                            </div>
+                            <div class="flow-item">
+                                <div class="flow-label">Outflow</div>
+                                <div class="flow-amount outflow">-${fmt(week.outflow)}</div>
+                            </div>
+                        </div>
+                        <div class="week-balance">
+                            <div class="flow-label">End Balance</div>
+                            <div class="flow-amount" style="color:${week.balance_end >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                                ${fmt(week.balance_end)}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                document.getElementById('forecastList').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const showGroups = async () => {
+            showScreen('forecastView');
+            document.getElementById('forecastTitle').textContent = 'Categories';
+            document.getElementById('forecastList').innerHTML = '<div class="spinner"></div>';
+            
+            try {
+                const groups = await api('/groups');
+                
+                document.getElementById('forecastList').innerHTML = groups.map(g => `
+                    <div class="group-card">
+                        <div class="group-header">
+                            <span class="group-name">${g.name}</span>
+                            <span class="group-badge ${g.stream_type === 'inflow' ? 'badge-inflow' : 'badge-outflow'}">
+                                ${g.stream_type === 'inflow' ? '↑' : '↓'} ${fmt(g.net_amount)}
+                            </span>
+                        </div>
+                        <div class="group-stats">
+                            <span>${g.transaction_count} transactions</span>
+                            <span>Avg: ${fmt(g.avg_amount)}</span>
+                            <span>${g.frequency}</span>
+                            ${g.offset_count ? `<span>${g.offset_count} offsets</span>` : ''}
+                        </div>
+                    </div>
+                `).join('') || '<p style="color:var(--text-muted);text-align:center;padding:20px;">No categories yet</p>';
+            } catch (err) {
+                document.getElementById('forecastList').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const showTransactions = async () => {
+            showScreen('forecastView');
+            document.getElementById('forecastTitle').textContent = 'Transactions';
+            document.getElementById('forecastList').innerHTML = '<div class="spinner"></div>';
+            
+            try {
+                const data = await api('/transactions?per_page=50');
+                
+                document.getElementById('forecastList').innerHTML = data.transactions.map(t => `
+                    <div class="group-card" style="padding:12px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div>
+                                <div style="font-size:13px;color:var(--text-muted);">${t.date}</div>
+                                <div style="font-size:14px;margin-top:4px;">${t.description.substring(0, 40)}...</div>
+                            </div>
+                            <div style="font-weight:600;font-size:16px;color:${t.amount >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                                ${t.amount >= 0 ? '+' : ''}${fmt(t.amount)}
+                            </div>
+                        </div>
+                    </div>
+                `).join('') || '<p style="color:var(--text-muted);text-align:center;padding:20px;">No transactions yet</p>';
+            } catch (err) {
+                document.getElementById('forecastList').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const showSettings = () => {
+            if (confirm('Log out?')) {
+                localStorage.removeItem('projectr_token');
+                token = null;
+                user = null;
+                showScreen('authScreen');
+            }
+        };
+        
+        // Init
+        if (token) {
+            api('/me').then(u => {
+                user = u;
+                if (user.onboarding_complete) {
+                    showScreen('dashboard');
+                    loadDashboard();
+                } else {
+                    showScreen('onboarding1');
+                }
+            }).catch(() => {
+                localStorage.removeItem('projectr_token');
+                token = null;
+            });
+        }
+    </script>
+</body>
+</html>
