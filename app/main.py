@@ -4,7 +4,8 @@ Multi-tenant cash flow forecasting
 """
 import os
 import httpx
-from datetime import date, datetime
+import secrets
+from datetime import date, datetime, timedelta
 from typing import Optional, List
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Query, Body, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
@@ -42,6 +43,13 @@ class SignupRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 class CompanyInfoRequest(BaseModel):
     company_name: str
@@ -145,6 +153,57 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
             "plan": user.plan
         }
     }
+
+@app.post("/auth/forgot-password")
+def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Send password reset token"""
+    user = db.query(User).filter(User.email == req.email.lower()).first()
+    
+    # Always return success to avoid leaking email existence
+    if not user:
+        return {"ok": True, "message": "If that email exists, a reset link has been sent"}
+    
+    # Generate reset token
+    token = secrets.token_urlsafe(32)
+    user.reset_token = token
+    user.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
+    db.commit()
+    
+    # Send notification via webhook
+    try:
+        webhook_url = os.environ.get("SIGNUP_WEBHOOK_URL")
+        if webhook_url:
+            httpx.post(webhook_url, json={
+                "event": "password_reset_requested",
+                "email": user.email,
+                "company_name": user.company_name or "(not set)",
+                "reset_token": token,
+                "expires": user.reset_token_expires.isoformat(),
+                "timestamp": datetime.now().isoformat()
+            }, timeout=5)
+    except Exception as e:
+        print(f"Webhook notification failed: {e}")
+    
+    return {"ok": True, "message": "If that email exists, a reset link has been sent"}
+
+@app.post("/auth/reset-password")
+def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Reset password using token"""
+    user = db.query(User).filter(User.reset_token == req.token).first()
+    
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    if user.reset_token_expires and user.reset_token_expires < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Reset token has expired")
+    
+    # Update password and clear token
+    user.password_hash = hash_pw(req.new_password)
+    user.reset_token = None
+    user.reset_token_expires = None
+    db.commit()
+    
+    return {"ok": True, "message": "Password has been reset. You can now login."}
 
 @app.get("/me")
 def get_me(user: User = Depends(get_current_user)):
