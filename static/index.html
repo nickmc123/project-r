@@ -1144,10 +1144,22 @@
                 
                 if (!res.ok) throw new Error('Upload failed');
                 const data = await res.json();
+                const imp = data.imported;
                 
-                alert(`Imported ${data.imported.added} transactions!`);
-                showScreen('onboarding3');
-                loadSuggestedGroups();
+                let msg = `Imported ${imp.added} transactions!`;
+                if (imp.duplicates > 0) {
+                    msg += `\n${imp.duplicates} duplicates skipped.`;
+                }
+                if (imp.added === 0 && imp.total_parsed === 0) {
+                    msg = `Couldn't parse any transactions from file.\n\nMake sure CSV has Date, Description, and Amount columns.`;
+                }
+                
+                alert(msg);
+                
+                if (imp.added > 0) {
+                    showScreen('onboarding3');
+                    loadSuggestedGroups();
+                }
             } catch (err) {
                 alert(err.message);
             }
@@ -1162,9 +1174,25 @@
             
             try {
                 const res = await api('/onboarding/paste-data', 'POST', { data: pasteData });
-                alert(`Imported ${res.imported.added} transactions!`);
-                showScreen('onboarding3');
-                loadSuggestedGroups();
+                const imp = res.imported;
+                
+                let msg = `Imported ${imp.added} transactions!`;
+                if (imp.duplicates > 0) {
+                    msg += `\n${imp.duplicates} duplicates skipped.`;
+                }
+                if (imp.added === 0 && imp.total_parsed === 0) {
+                    msg = `Couldn't parse any transactions.\n\nTips:\n- Make sure data has a date column\n- Use tab or comma separated values\n- Date headers like "JAN 13, 2026" work too`;
+                    if (imp.debug && imp.debug.length > 0) {
+                        msg += `\n\nDebug: ${imp.debug.slice(-3).join('\n')}`;
+                    }
+                }
+                
+                alert(msg);
+                
+                if (imp.added > 0) {
+                    showScreen('onboarding3');
+                    loadSuggestedGroups();
+                }
             } catch (err) {
                 alert(err.message);
             }
