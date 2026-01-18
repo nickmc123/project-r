@@ -1,360 +1,98 @@
 """
-Transaction Ingestion Service - Intelligent Parser
+Transaction Ingestion Service - Interactive Parser
 
-This parser analyzes pasted data to discover its structure, then builds
-custom extraction rules. It handles messy web-copied bank data with various formats.
-
-Strategy:
-1. Analyze the entire dataset to detect patterns
-2. Identify columns: which have dates? amounts? descriptions?
-3. Detect debit/credit column layout vs single amount column
-4. Handle date headers vs inline dates
-5. Extract transactions using discovered rules
+Smart parsing that:
+1. Analyzes data structure automatically
+2. If confident, parses and returns for confirmation
+3. If uncertain, asks user to define field mappings
+4. Learns custom parsing rules from user input
+5. Always shows confirmation before saving
 """
-from datetime import datetime, date
-from typing import List, Dict, Any, Optional, Tuple
+
+from typing import List, Dict, Optional, Tuple, Any
+from datetime import date, datetime
 import re
-from decimal import Decimal, InvalidOperation
+import json
 
-
-# ============================================================================
-# PATTERN DEFINITIONS
-# ============================================================================
-
-# Date patterns - ordered by specificity
+# Date patterns to try
 DATE_PATTERNS = [
-    # Full formats with year
-    (r'\b(\d{1,2})/(\d{1,2})/(\d{4})\b', 'MDY'),           # 01/15/2026
-    (r'\b(\d{1,2})-(\d{1,2})-(\d{4})\b', 'MDY'),           # 01-15-2026
-    (r'\b(\d{4})/(\d{1,2})/(\d{1,2})\b', 'YMD'),           # 2026/01/15
-    (r'\b(\d{4})-(\d{1,2})-(\d{1,2})\b', 'YMD'),           # 2026-01-15
+    # Full formats
+    (r'(\d{1,2})/(\d{1,2})/(\d{4})', lambda m: date(int(m.group(3)), int(m.group(1)), int(m.group(2)))),
+    (r'(\d{1,2})/(\d{1,2})/(\d{2})', lambda m: date(2000 + int(m.group(3)), int(m.group(1)), int(m.group(2)))),
+    (r'(\d{4})-(\d{2})-(\d{2})', lambda m: date(int(m.group(1)), int(m.group(2)), int(m.group(3)))),
+    (r'(\d{1,2})-(\d{1,2})-(\d{4})', lambda m: date(int(m.group(3)), int(m.group(1)), int(m.group(2)))),
     # Month name formats
-    (r'\b([A-Z]{3})\s+(\d{1,2}),?\s*(\d{4})\b', 'MnDY'),   # JAN 15, 2026
-    (r'\b(\d{1,2})\s+([A-Z]{3})\s+(\d{4})\b', 'DMnY'),     # 15 JAN 2026
-    (r'\b([A-Z]{3})\s+(\d{1,2})\s+(\d{4})\b', 'MnDY'),     # JAN 15 2026
-    # Short formats (assume current/recent year)
-    (r'\b(\d{1,2})/(\d{1,2})/(\d{2})\b', 'MDy'),           # 01/15/26
-    (r'\b(\d{1,2})-(\d{1,2})-(\d{2})\b', 'MDy'),           # 01-15-26
-    (r'\b([A-Z]{3})\s+(\d{1,2})\b', 'MnD'),                # JAN 15
+    (r'(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s+(\d{1,2}),?\s+(\d{4})', 'month_name'),
+    (r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})', 'month_name_full'),
 ]
 
-MONTH_NAMES = {
+MONTH_MAP = {
     'JAN': 1, 'FEB': 2, 'MAR': 3, 'APR': 4, 'MAY': 5, 'JUN': 6,
     'JUL': 7, 'AUG': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DEC': 12,
-    'JANUARY': 1, 'FEBRUARY': 2, 'MARCH': 3, 'APRIL': 4, 'JUNE': 6,
+    'JANUARY': 1, 'FEBRUARY': 2, 'MARCH': 3, 'APRIL': 4, 'MAY': 5, 'JUNE': 6,
     'JULY': 7, 'AUGUST': 8, 'SEPTEMBER': 9, 'OCTOBER': 10, 'NOVEMBER': 11, 'DECEMBER': 12
 }
 
-# Amount pattern - matches monetary values
-AMOUNT_PATTERN = re.compile(r'^[\$\-\+]?\s*[\(\-]?\s*\$?\s*[\d,]+\.?\d*\s*\)?$')
-AMOUNT_EXTRACT = re.compile(r'[\(\-]?\s*\$?\s*([\d,]+\.?\d*)\s*\)?')
 
-
-# ============================================================================
-# STRUCTURE ANALYSIS
-# ============================================================================
-
-def analyze_data_structure(raw_data: str) -> Dict[str, Any]:
-    """
-    Analyze the pasted data to discover its structure.
-    Returns information about columns, separators, date positions, etc.
-    """
-    analysis = {
-        'separator': None,           # 'tab', 'comma', 'multi-space', 'mixed'
-        'has_header_row': False,     # First row is column headers
-        'date_style': None,          # 'header', 'inline', 'column'
-        'column_count': 0,
-        'column_types': [],          # List of detected types per column
-        'amount_columns': [],        # Indices of amount columns
-        'description_column': None,  # Index of description column
-        'date_column': None,         # Index if dates are in a column
-        'balance_column': None,      # Index of balance column
-        'debit_credit_layout': False, # True if separate debit/credit columns
-        'sample_rows': [],           # Sample parsed rows for debugging
-    }
-    
-    lines = [l for l in raw_data.strip().split('\n') if l.strip()]
-    if not lines:
-        return analysis
-    
-    # Step 1: Detect separator
-    analysis['separator'] = detect_separator(lines)
-    
-    # Step 2: Split lines into columns
-    rows = []
-    for line in lines:
-        cols = split_line(line, analysis['separator'])
-        if cols:
-            rows.append(cols)
-    
-    if not rows:
-        return analysis
-    
-    # Step 3: Detect if first row is headers
-    if rows:
-        analysis['has_header_row'] = is_header_row(rows[0])
-    
-    # Step 4: Get hints from headers if available
-    header_hints = {}
-    if analysis['has_header_row'] and rows:
-        header_hints = get_column_hints_from_headers(rows[0])
-    
-    # Step 5: Analyze each column across all rows
-    data_rows = rows[1:] if analysis['has_header_row'] else rows
-    if data_rows:
-        max_cols = max(len(r) for r in data_rows)
-        analysis['column_count'] = max_cols
-        analysis['column_types'] = analyze_columns(data_rows, max_cols)
-        
-        # Override with header hints where available
-        for col_idx, hint_type in header_hints.items():
-            if col_idx < len(analysis['column_types']):
-                if hint_type == 'debit':
-                    analysis['column_types'][col_idx] = 'amount'
-                    if col_idx not in analysis['amount_columns']:
-                        analysis['amount_columns'].append(col_idx)
-                    analysis['debit_credit_layout'] = True
-                elif hint_type == 'credit':
-                    analysis['column_types'][col_idx] = 'amount'
-                    if col_idx not in analysis['amount_columns']:
-                        analysis['amount_columns'].append(col_idx)
-                    analysis['debit_credit_layout'] = True
-                else:
-                    analysis['column_types'][col_idx] = hint_type
-        
-        # Sort amount columns for consistent debit/credit ordering
-        analysis['amount_columns'].sort()
-        
-        # Identify specific columns (after hint processing)
-        for i, col_type in enumerate(analysis['column_types']):
-            if col_type == 'date' and analysis['date_column'] is None:
-                analysis['date_column'] = i
-            elif col_type == 'amount' and i not in analysis['amount_columns']:
-                analysis['amount_columns'].append(i)
-            elif col_type == 'description':
-                if analysis['description_column'] is None:
-                    analysis['description_column'] = i
-            elif col_type == 'balance' and analysis['balance_column'] is None:
-                analysis['balance_column'] = i
-    
-    # Step 5: Check for date headers (standalone date lines)
-    analysis['date_style'] = detect_date_style(lines, analysis)
-    
-    # Step 6: Check for debit/credit layout
-    if len(analysis['amount_columns']) >= 2:
-        analysis['debit_credit_layout'] = detect_debit_credit_layout(data_rows, analysis['amount_columns'])
-    
-    # Sample rows for debugging
-    analysis['sample_rows'] = rows[:5]
-    
-    return analysis
-
-
-def detect_separator(lines: List[str]) -> str:
-    """Detect what separator is used in the data."""
-    tab_count = sum(1 for l in lines if '\t' in l)
-    space_count = sum(1 for l in lines if '  ' in l)  # Multi-space
-    
-    # Count commas that are field separators (not in numbers)
-    # A field-separator comma has non-digit on at least one side
-    def count_field_commas(line: str) -> int:
-        count = 0
-        for i, c in enumerate(line):
-            if c == ',':
-                before = line[i-1] if i > 0 else ''
-                after = line[i+1] if i < len(line)-1 else ''
-                # If comma is not between digits, it's a field separator
-                if not (before.isdigit() and after.isdigit()):
-                    count += 1
-        return count
-    
-    # Lines with 2+ field commas are CSV
-    csv_lines = sum(1 for l in lines if count_field_commas(l) >= 2)
-    
-    total = len(lines)
-    if total == 0:
-        return 'space'
-    
-    # If most lines have tabs, use tab separator
-    if tab_count / total > 0.5:
-        return 'tab'
-    # If most lines have multiple field commas, use comma
-    if csv_lines / total > 0.5:
-        return 'comma'
-    # If most lines have multi-spaces, use that
-    if space_count / total > 0.3:
-        return 'multi-space'
-    
-    return 'space'
-
-
-def split_line(line: str, separator: str) -> List[str]:
-    """Split a line based on detected separator."""
-    if separator == 'tab':
-        return [c.strip() for c in line.split('\t')]
-    elif separator == 'comma':
-        # Handle CSV properly (quoted strings may contain commas)
-        parts = []
-        current = ''
-        in_quotes = False
-        for char in line:
-            if char == '"':
-                in_quotes = not in_quotes
-            elif char == ',' and not in_quotes:
-                parts.append(current.strip().strip('"'))
-                current = ''
-            else:
-                current += char
-        parts.append(current.strip().strip('"'))
-        return parts
-    elif separator == 'multi-space':
-        # Split on 2+ spaces, but be smarter about it
-        # First try 3+ spaces (more reliable field separator)
-        parts = re.split(r'\s{3,}', line.strip())
-        if len(parts) >= 3:
-            # Check for suspicious large gaps that might indicate empty columns
-            result = []
-            for p in parts:
-                p = p.strip()
-                if p:
-                    # Check if this part has a large internal gap (empty column merged)
-                    # Pattern: "number    number" with many spaces between
-                    gap_match = re.search(r'(\d[\d,\.]*)\s{6,}(\d[\d,\.]*)', p)
-                    if gap_match:
-                        # Split this into separate values with empty between
-                        before = p[:gap_match.start()] + gap_match.group(1)
-                        after = gap_match.group(2) + p[gap_match.end():]
-                        result.append(before.strip())
-                        result.append('')  # Empty column
-                        result.append(after.strip())
-                    else:
-                        result.append(p)
-            return result
-        # Fall back to 2+ spaces
-        parts = re.split(r'\s{2,}', line.strip())
-        return [p.strip() for p in parts if p.strip()]
-    else:
-        # Single space - return whole line for further processing
-        return [line.strip()]
-
-
-def is_header_row(row: List[str]) -> bool:
-    """Check if a row looks like column headers."""
-    header_keywords = {'date', 'description', 'amount', 'debit', 'credit', 'balance', 
-                      'memo', 'transaction', 'type', 'category', 'check', 'ref',
-                      'withdrawal', 'deposit', 'posted', 'effective', 'payee', 'name'}
-    
-    # If most cells match header keywords, it's a header row
-    matches = sum(1 for cell in row if cell.lower().strip() in header_keywords)
-    return matches >= 2 or (len(row) > 0 and matches / len(row) > 0.4)
-
-
-def get_column_hints_from_headers(header_row: List[str]) -> Dict[str, int]:
-    """Extract column type hints from header names."""
-    hints = {}
-    header_map = {
-        'date': 'date', 'posted': 'date', 'effective': 'date',
-        'description': 'description', 'memo': 'description', 'payee': 'description', 'name': 'description',
-        'debit': 'debit', 'withdrawal': 'debit', 'payment': 'debit',
-        'credit': 'credit', 'deposit': 'credit',
-        'amount': 'amount',
-        'balance': 'balance', 'running': 'balance',
-    }
-    
-    for i, header in enumerate(header_row):
-        header_lower = header.lower().strip()
-        for keyword, col_type in header_map.items():
-            if keyword in header_lower:
-                hints[i] = col_type
-                break
-    
-    return hints
-
-
-def analyze_columns(rows: List[List[str]], max_cols: int) -> List[str]:
-    """Analyze each column to determine its type."""
-    column_types = []
-    
-    for col_idx in range(max_cols):
-        values = []
-        for row in rows:
-            if col_idx < len(row):
-                values.append(row[col_idx])
-        
-        col_type = detect_column_type(values, col_idx, max_cols)
-        column_types.append(col_type)
-    
-    return column_types
-
-
-def detect_column_type(values: List[str], col_idx: int, total_cols: int) -> str:
-    """Determine what type of data is in this column."""
-    if not values:
-        return 'unknown'
-    
-    non_empty = [v for v in values if v.strip()]
-    total_values = len(values)
-    empty_count = total_values - len(non_empty)
-    
-    if not non_empty:
-        return 'empty'
-    
-    # Count how many look like dates
-    date_count = sum(1 for v in non_empty if looks_like_date(v))
-    
-    # Count how many look like amounts
-    amount_count = sum(1 for v in non_empty if looks_like_amount(v))
-    
-    # Count how many are purely text (descriptions)
-    text_count = sum(1 for v in non_empty if looks_like_description(v))
-    
-    total = len(non_empty)
-    
-    # If most are dates, it's a date column
-    if date_count / total > 0.7:
-        return 'date'
-    
-    # If most are amounts, check if it's balance (usually last) or amount
-    if amount_count / total > 0.7:
-        # Last column with amounts is often balance (largest values)
-        if col_idx == total_cols - 1:
-            return 'balance'
-        return 'amount'
-    
-    # If most are text, it's a description
-    if text_count / total > 0.5:
-        return 'description'
-    
-    # Sparse column with some amounts and many empties = debit or credit column
-    if amount_count > 0:
-        # If more than 30% empty and some amounts, it's likely a debit/credit column
-        if empty_count / total_values > 0.3:
-            return 'amount'
-        # If amounts exist but not dominant, still might be amount column
-        if amount_count / total > 0.3:
-            if col_idx == total_cols - 1:
-                return 'balance'
-            return 'amount'
-    
-    return 'unknown'
-
-
-def looks_like_date(s: str) -> bool:
-    """Check if string looks like a date."""
-    s = s.strip().upper()
-    for pattern, _ in DATE_PATTERNS:
-        if re.search(pattern, s, re.IGNORECASE):
-            return True
-    return False
-
-
-def looks_like_amount(s: str) -> bool:
-    """Check if string looks like a monetary amount."""
+def parse_date(s: str) -> Optional[date]:
+    """Try to parse a date from string"""
+    if not s:
+        return None
     s = s.strip()
+    
+    for pattern, handler in DATE_PATTERNS:
+        match = re.search(pattern, s, re.IGNORECASE)
+        if match:
+            if handler == 'month_name' or handler == 'month_name_full':
+                month = MONTH_MAP.get(match.group(1).upper())
+                day = int(match.group(2))
+                year = int(match.group(3))
+                try:
+                    return date(year, month, day)
+                except:
+                    continue
+            else:
+                try:
+                    return handler(match)
+                except:
+                    continue
+    return None
+
+
+def parse_amount(s: str) -> Optional[float]:
+    """Parse amount - always returns positive value"""
+    if not s:
+        return None
+    s = s.strip()
+    
+    # Remove currency symbols and formatting
+    s = re.sub(r'[$€£¥]', '', s)
+    s = s.replace(',', '')
+    s = s.replace(' ', '')
+    
+    # Handle parentheses as negative (but we return positive)
+    if s.startswith('(') and s.endswith(')'):
+        s = s[1:-1]
+    
+    # Remove any negative sign
+    s = s.lstrip('-+')
+    
+    # Try to parse
+    try:
+        val = float(s)
+        return abs(val) if val != 0 else None
+    except:
+        return None
+
+
+def is_amount_like(s: str) -> bool:
+    """Check if string looks like an amount"""
     if not s:
         return False
-    # Remove currency symbols and check if it's a number
-    cleaned = re.sub(r'[\$,\(\)\-\+\s]', '', s)
+    s = s.strip()
+    # Remove currency and formatting
+    cleaned = re.sub(r'[$€£¥,\s()]', '', s)
+    cleaned = cleaned.lstrip('-+')
     try:
         float(cleaned)
         return True
@@ -362,652 +100,547 @@ def looks_like_amount(s: str) -> bool:
         return False
 
 
-def looks_like_description(s: str) -> bool:
-    """Check if string looks like a transaction description."""
-    s = s.strip()
-    if not s:
-        return False
-    # Descriptions typically have letters and are longer
-    if len(s) < 3:
-        return False
-    # Should have some letters
-    if not re.search(r'[A-Za-z]', s):
-        return False
-    # Should not be mostly numbers
-    digits = sum(1 for c in s if c.isdigit())
-    if digits / len(s) > 0.5:
-        return False
-    return True
+def is_date_like(s: str) -> bool:
+    """Check if string looks like a date"""
+    return parse_date(s) is not None
 
 
-def detect_date_style(lines: List[str], analysis: Dict) -> str:
-    """Detect how dates appear in the data."""
-    # Check for standalone date lines (date headers)
-    date_only_lines = 0
-    for line in lines:
-        line = line.strip()
-        if looks_like_date(line) and len(line) < 30:
-            # Line is primarily a date
-            date_only_lines += 1
+def detect_separator(data: str) -> str:
+    """Detect the field separator"""
+    lines = data.strip().split('\n')
     
-    if date_only_lines > 0:
-        return 'header'
+    # Count occurrences
+    tab_count = sum(line.count('\t') for line in lines[:10])
+    comma_count = sum(line.count(',') for line in lines[:10])
+    pipe_count = sum(line.count('|') for line in lines[:10])
     
-    if analysis['date_column'] is not None:
-        return 'column'
-    
-    return 'inline'
+    if tab_count > comma_count and tab_count > pipe_count:
+        return '\t'
+    elif pipe_count > comma_count:
+        return '|'
+    elif comma_count > 0:
+        return ','
+    else:
+        return '\t'  # Default to tab for whitespace-separated
 
 
-def detect_debit_credit_layout(rows: List[List[str]], amount_cols: List[int]) -> bool:
-    """
-    Detect if amount columns are debit/credit (one filled, one empty per row).
-    """
-    if len(amount_cols) < 2:
-        return False
-    
-    # Check if for each row, typically only one amount column has a value
-    exclusive_count = 0
-    for row in rows:
-        values = []
-        for col_idx in amount_cols[:2]:  # Check first two amount columns
-            if col_idx < len(row):
-                val = row[col_idx].strip()
-                values.append(bool(val and looks_like_amount(val)))
+def split_line(line: str, separator: str) -> List[str]:
+    """Split a line by separator, preserving empty fields"""
+    if separator == '\t':
+        # For tabs, split and keep empties
+        parts = line.split('\t')
+        return [p.strip() for p in parts]
+    elif separator == ',':
+        # CSV - handle quoted fields
+        parts = []
+        current = ""
+        in_quotes = False
+        for char in line:
+            if char == '"':
+                in_quotes = not in_quotes
+            elif char == ',' and not in_quotes:
+                parts.append(current.strip())
+                current = ""
             else:
-                values.append(False)
+                current += char
+        parts.append(current.strip())
+        return parts
+    else:
+        return [p.strip() for p in line.split(separator)]
+
+
+def analyze_data_structure(data: str) -> Dict[str, Any]:
+    """
+    Analyze the data and return structure info.
+    Returns confidence level and detected fields.
+    """
+    lines = [l for l in data.strip().split('\n') if l.strip()]
+    if not lines:
+        return {"confidence": 0, "error": "No data provided"}
+    
+    separator = detect_separator(data)
+    
+    # Analyze first 20 lines to understand structure
+    sample_rows = []
+    header_row = None
+    data_rows = []
+    
+    for i, line in enumerate(lines[:30]):
+        parts = split_line(line, separator)
         
-        # XOR - exactly one should be true
-        if values[0] != values[1]:
-            exclusive_count += 1
-    
-    # If most rows have exclusive values, it's debit/credit layout
-    return exclusive_count / max(len(rows), 1) > 0.6
-
-
-# ============================================================================
-# DATE PARSING
-# ============================================================================
-
-def parse_date(s: str, year_hint: int = None) -> Optional[date]:
-    """Parse a date string into a date object."""
-    s = s.strip().upper()
-    
-    if year_hint is None:
-        year_hint = datetime.now().year
-    
-    for pattern, format_type in DATE_PATTERNS:
-        match = re.search(pattern, s, re.IGNORECASE)
-        if match:
-            groups = match.groups()
-            try:
-                if format_type == 'MDY':
-                    return date(int(groups[2]), int(groups[0]), int(groups[1]))
-                elif format_type == 'YMD':
-                    return date(int(groups[0]), int(groups[1]), int(groups[2]))
-                elif format_type == 'MnDY':
-                    month = MONTH_NAMES.get(groups[0].upper()[:3], 1)
-                    return date(int(groups[2]), month, int(groups[1]))
-                elif format_type == 'DMnY':
-                    month = MONTH_NAMES.get(groups[1].upper()[:3], 1)
-                    return date(int(groups[2]), month, int(groups[0]))
-                elif format_type == 'MDy':
-                    year = int(groups[2])
-                    year = year + 2000 if year < 100 else year
-                    return date(year, int(groups[0]), int(groups[1]))
-                elif format_type == 'MnD':
-                    month = MONTH_NAMES.get(groups[0].upper()[:3], 1)
-                    day = int(groups[1])
-                    return date(year_hint, month, day)
-            except (ValueError, KeyError):
+        # Check if this is a date header line (just a date)
+        if len(parts) == 1 and is_date_like(parts[0]):
+            continue
+            
+        # Check if this is a column header row
+        if i == 0:
+            # Headers typically have text that aren't numbers or dates
+            non_numeric = sum(1 for p in parts if p and not is_amount_like(p) and not is_date_like(p))
+            if non_numeric >= len(parts) // 2:
+                header_row = parts
                 continue
+        
+        if parts and any(p.strip() for p in parts):
+            sample_rows.append(parts)
+            if len(data_rows) < 20:
+                data_rows.append({"line": i + 1, "raw": line, "parts": parts})
     
-    return None
+    if not sample_rows:
+        return {"confidence": 0, "error": "No parseable rows found"}
+    
+    # Analyze columns
+    num_cols = max(len(row) for row in sample_rows)
+    column_analysis = []
+    
+    for col_idx in range(num_cols):
+        col_values = [row[col_idx] if col_idx < len(row) else "" for row in sample_rows]
+        non_empty = [v for v in col_values if v.strip()]
+        
+        # Determine column type
+        date_count = sum(1 for v in non_empty if is_date_like(v))
+        amount_count = sum(1 for v in non_empty if is_amount_like(v))
+        
+        col_type = "unknown"
+        confidence = 0
+        
+        if len(non_empty) == 0:
+            col_type = "empty"
+            confidence = 100
+        elif date_count > len(non_empty) * 0.7:
+            col_type = "date"
+            confidence = int(date_count / len(non_empty) * 100)
+        elif amount_count > len(non_empty) * 0.7:
+            col_type = "amount"
+            confidence = int(amount_count / len(non_empty) * 100)
+        else:
+            col_type = "text"
+            confidence = 80
+        
+        # Check header name hints
+        header_name = header_row[col_idx].upper() if header_row and col_idx < len(header_row) else ""
+        if any(h in header_name for h in ['DATE', 'POSTED', 'TRANS']):
+            col_type = "date"
+            confidence = 95
+        elif any(h in header_name for h in ['DEBIT', 'WITHDRAWAL', 'PAYMENT', 'CHARGE']):
+            col_type = "debit"
+            confidence = 95
+        elif any(h in header_name for h in ['CREDIT', 'DEPOSIT', 'RECEIPT']):
+            col_type = "credit"
+            confidence = 95
+        elif any(h in header_name for h in ['AMOUNT', 'TOTAL']):
+            col_type = "amount"
+            confidence = 90
+        elif any(h in header_name for h in ['BALANCE', 'RUNNING']):
+            col_type = "balance"
+            confidence = 95
+        elif any(h in header_name for h in ['DESC', 'MEMO', 'PAYEE', 'NAME', 'DETAIL']):
+            col_type = "description"
+            confidence = 95
+        
+        column_analysis.append({
+            "index": col_idx,
+            "header": header_row[col_idx] if header_row and col_idx < len(header_row) else f"Column {col_idx + 1}",
+            "type": col_type,
+            "confidence": confidence,
+            "sample_values": non_empty[:5]
+        })
+    
+    # Calculate overall confidence
+    identified_types = [c["type"] for c in column_analysis if c["type"] not in ["unknown", "empty"]]
+    has_date = any(c["type"] == "date" for c in column_analysis)
+    has_amount = any(c["type"] in ["amount", "debit", "credit"] for c in column_analysis)
+    has_description = any(c["type"] in ["description", "text"] for c in column_analysis)
+    
+    overall_confidence = 0
+    if has_date and has_amount and has_description:
+        overall_confidence = 90
+    elif has_amount and has_description:
+        overall_confidence = 70
+    elif has_amount:
+        overall_confidence = 50
+    else:
+        overall_confidence = 20
+    
+    return {
+        "confidence": overall_confidence,
+        "separator": separator,
+        "has_header": header_row is not None,
+        "header_row": header_row,
+        "num_columns": num_cols,
+        "total_rows": len(lines),
+        "data_rows": len(sample_rows),
+        "columns": column_analysis,
+        "sample_data": data_rows[:10],
+        "needs_user_input": overall_confidence < 70
+    }
 
 
-# ============================================================================
-# AMOUNT PARSING
-# ============================================================================
-
-def parse_amount(s: str) -> Optional[float]:
-    """Parse an amount string into a float."""
-    if not s or not s.strip():
-        return None
-    
-    s = s.strip()
-    
-    # Detect negative indicators
-    is_negative = False
-    if '(' in s and ')' in s:  # Accounting format (1,234.56)
-        is_negative = True
-    if s.startswith('-') or s.endswith('-'):
-        is_negative = True
-    if s.upper().startswith('DR') or 'DEBIT' in s.upper():
-        is_negative = True
-    
-    # Detect positive indicators
-    if s.startswith('+'):
-        is_negative = False
-    if s.upper().startswith('CR') or 'CREDIT' in s.upper():
-        is_negative = False
-    
-    # Extract the numeric value
-    match = AMOUNT_EXTRACT.search(s)
-    if match:
-        num_str = match.group(1).replace(',', '')
-        try:
-            value = float(num_str)
-            return -value if is_negative else value
-        except ValueError:
-            pass
-    
-    return None
-
-
-def infer_sign_from_description(description: str) -> int:
+def parse_with_mapping(data: str, mapping: Dict[str, Any]) -> Tuple[List[Dict], List[str]]:
     """
-    Infer whether a transaction is debit (-1) or credit (+1) from description keywords.
-    Returns 0 if unsure.
+    Parse data using user-defined field mapping.
+    
+    mapping = {
+        "separator": "\t",
+        "has_header": true,
+        "skip_lines": 0,
+        "fields": {
+            "date": {"column": 0},  # or {"column": null} if date is in header
+            "amount": {"column": 2},
+            "description": {"column": 1},
+            "sign": {"column": 3, "debit_value": "DR", "credit_value": "CR"},  # or {"default": "debit"}
+            "balance": {"column": 4},  # optional
+            "account": {"column": null},  # optional
+            "category": {"column": null}  # optional
+        },
+        "custom_fields": [
+            {"name": "reference", "column": 5}
+        ]
+    }
     """
-    desc_upper = description.upper()
-    
-    # Strong debit indicators (money going out)
-    debit_keywords = [
-        'DEBIT', 'WITHDRAWAL', 'PAYMENT', 'CHECK ', 'CHK ', 'BILL PAY',
-        'ACH DEBIT', 'WIRE OUT', 'TRANSFER OUT', 'PURCHASE', 'POS ',
-        'ATM WITHDRAWAL', 'FEE ', ' FEE', 'CHARGE', 'EXPENSE', 'PAID',
-        'VISA ', 'MASTERCARD', 'AMEX ', 'DDA PUR', 'BILL ',
-        'ELECTRIC', 'GAS ', 'WATER ', 'RENT ', 'INSURANCE', 'TAX ',
-        'UTILITY', 'PHONE ', 'INTERNET', 'SUBSCRIPTION'
-    ]
-    
-    # Strong credit indicators (money coming in)
-    credit_keywords = [
-        'CREDIT', 'DEPOSIT', 'ACH CREDIT', 'WIRE IN', 'TRANSFER IN',
-        'DIRECT DEP', 'PAYROLL', 'REFUND', 'REVERSAL', 'REBATE',
-        'INTEREST', 'DIVIDEND', 'RECEIVED', 'INCOMING', 'REVENUE',
-        'CLIENT REV', 'CUSTOMER', 'SALE', ' IN ', 'WIRE FROM'
-    ]
-    
-    # Check credits first (more specific patterns)
-    for kw in credit_keywords:
-        if kw in desc_upper:
-            return 1
-    
-    for kw in debit_keywords:
-        if kw in desc_upper:
-            return -1
-    
-    return 0
-
-
-# ============================================================================
-# MAIN PARSING FUNCTION
-# ============================================================================
-
-def parse_web_pasted_data(raw_data: str) -> Tuple[List[Dict[str, Any]], List[str]]:
-    """
-    Main entry point: Parse messy web-pasted bank data.
-    
-    Returns:
-        - List of transactions: [{date, amount, description, balance?}, ...]
-        - List of debug messages
-    """
-    debug = []
+    lines = data.strip().split('\n')
     transactions = []
+    debug_log = []
     
-    if not raw_data or not raw_data.strip():
-        return [], ['No data provided']
+    separator = mapping.get("separator", "\t")
+    has_header = mapping.get("has_header", False)
+    skip_lines = mapping.get("skip_lines", 0)
+    fields = mapping.get("fields", {})
+    custom_fields = mapping.get("custom_fields", [])
     
-    # Step 1: Analyze structure
-    analysis = analyze_data_structure(raw_data)
-    debug.append(f"STRUCTURE: separator={analysis['separator']}, cols={analysis['column_count']}")
-    debug.append(f"COLUMNS: {analysis['column_types']}")
-    debug.append(f"DATE STYLE: {analysis['date_style']}, DEBIT/CREDIT: {analysis['debit_credit_layout']}")
-    debug.append(f"DESC COL: {analysis['description_column']}, AMT COLS: {analysis['amount_columns']}, BAL COL: {analysis['balance_column']}")
-    
-    # Step 2: Parse based on detected structure
-    lines = raw_data.strip().split('\n')
-    current_date = None
-    year_hint = datetime.now().year
-    
-    # Skip header if detected
-    start_idx = 1 if analysis['has_header_row'] else 0
+    current_date = date.today()
     
     for i, line in enumerate(lines):
+        if i < skip_lines:
+            continue
+        if has_header and i == skip_lines:
+            continue
+            
         line = line.strip()
         if not line:
             continue
         
-        # Check if this line is a date header
-        if analysis['date_style'] == 'header' and looks_like_date(line) and len(line) < 30:
-            parsed_date = parse_date(line, year_hint)
-            if parsed_date:
-                current_date = parsed_date
-                debug.append(f"Line {i}: DATE HEADER -> {current_date}")
+        parts = split_line(line, separator)
+        
+        # Check if this is a standalone date header
+        if len(parts) == 1:
+            parsed = parse_date(parts[0])
+            if parsed:
+                current_date = parsed
+                debug_log.append(f"Line {i+1}: Date header -> {current_date}")
                 continue
         
-        # Skip if this is the header row
-        if i == 0 and analysis['has_header_row']:
-            debug.append(f"Line {i}: SKIPPED (header row)")
+        # Extract fields
+        txn = {"raw_line": line, "line_number": i + 1}
+        
+        # Date
+        date_cfg = fields.get("date", {})
+        if date_cfg.get("column") is not None:
+            col = date_cfg["column"]
+            if col < len(parts):
+                txn["date"] = parse_date(parts[col]) or current_date
+            else:
+                txn["date"] = current_date
+        else:
+            txn["date"] = current_date
+        
+        # Amount (always positive)
+        amount_cfg = fields.get("amount", {})
+        amount = None
+        if amount_cfg.get("column") is not None:
+            col = amount_cfg["column"]
+            if col < len(parts):
+                amount = parse_amount(parts[col])
+        
+        if amount is None:
+            debug_log.append(f"Line {i+1}: No amount found, skipping")
             continue
         
-        # Parse the line
-        txn = parse_transaction_row(line, analysis, current_date, year_hint)
+        txn["amount"] = amount
         
-        if txn:
-            transactions.append(txn)
-            sign = '+' if txn['amount'] >= 0 else ''
-            debug.append(f"Line {i}: PARSED: {txn['description'][:30]} = {sign}${txn['amount']:.2f}")
+        # Sign (debit/credit)
+        sign_cfg = fields.get("sign", {})
+        is_debit = True  # Default to debit
+        
+        if sign_cfg.get("column") is not None:
+            col = sign_cfg["column"]
+            if col < len(parts):
+                val = parts[col].upper().strip()
+                if sign_cfg.get("credit_value") and val == sign_cfg["credit_value"].upper():
+                    is_debit = False
+                elif sign_cfg.get("debit_value") and val == sign_cfg["debit_value"].upper():
+                    is_debit = True
+                # Also check for common patterns
+                elif val in ["CR", "C", "CREDIT", "DEP", "DEPOSIT"]:
+                    is_debit = False
+                elif val in ["DR", "D", "DEBIT", "WD", "WITHDRAWAL"]:
+                    is_debit = True
+        elif sign_cfg.get("default") == "credit":
+            is_debit = False
+        elif sign_cfg.get("debit_column") is not None and sign_cfg.get("credit_column") is not None:
+            # Separate debit/credit columns
+            debit_col = sign_cfg["debit_column"]
+            credit_col = sign_cfg["credit_column"]
+            debit_val = parse_amount(parts[debit_col]) if debit_col < len(parts) else None
+            credit_val = parse_amount(parts[credit_col]) if credit_col < len(parts) else None
+            if credit_val and not debit_val:
+                is_debit = False
+                txn["amount"] = credit_val
+            elif debit_val:
+                txn["amount"] = debit_val
+        
+        # Apply sign
+        txn["signed_amount"] = -txn["amount"] if is_debit else txn["amount"]
+        txn["type"] = "debit" if is_debit else "credit"
+        
+        # Description
+        desc_cfg = fields.get("description", {})
+        if desc_cfg.get("column") is not None:
+            col = desc_cfg["column"]
+            if col < len(parts):
+                txn["description"] = parts[col]
+            else:
+                txn["description"] = ""
+        elif desc_cfg.get("columns"):
+            # Multiple columns combined
+            txn["description"] = " ".join(parts[c] for c in desc_cfg["columns"] if c < len(parts))
         else:
-            if len(line) > 10:  # Only log significant lines
-                debug.append(f"Line {i}: SKIPPED: {line[:50]}")
+            # Find first non-date, non-amount text
+            txn["description"] = ""
+            for p in parts:
+                if p and not is_amount_like(p) and not is_date_like(p):
+                    txn["description"] = p
+                    break
+        
+        # Balance (optional)
+        balance_cfg = fields.get("balance", {})
+        if balance_cfg.get("column") is not None:
+            col = balance_cfg["column"]
+            if col < len(parts):
+                txn["balance"] = parse_amount(parts[col])
+        
+        # Account (optional)
+        account_cfg = fields.get("account", {})
+        if account_cfg.get("column") is not None:
+            col = account_cfg["column"]
+            if col < len(parts):
+                txn["account"] = parts[col]
+        elif account_cfg.get("default"):
+            txn["account"] = account_cfg["default"]
+        
+        # Category (optional)
+        category_cfg = fields.get("category", {})
+        if category_cfg.get("column") is not None:
+            col = category_cfg["column"]
+            if col < len(parts):
+                txn["category"] = parts[col]
+        
+        # Custom fields
+        for cf in custom_fields:
+            if cf.get("column") is not None and cf["column"] < len(parts):
+                txn[cf["name"]] = parts[cf["column"]]
+        
+        transactions.append(txn)
+        debug_log.append(f"Line {i+1}: Parsed {txn['type']} ${txn['amount']:.2f}")
     
-    debug.append(f"TOTAL: {len(transactions)} transactions parsed")
-    
-    return transactions, debug
+    return transactions, debug_log
 
 
-def parse_transaction_row(line: str, analysis: Dict, current_date: date, year_hint: int) -> Optional[Dict[str, Any]]:
+def auto_parse_data(data: str) -> Tuple[List[Dict], Dict[str, Any], List[str]]:
     """
-    Parse a single transaction row using the detected structure.
+    Automatically parse data if confident, otherwise return analysis for user input.
+    
+    Returns: (transactions, analysis, debug_log)
+    - If confident: transactions will be populated
+    - If not confident: transactions will be empty, analysis.needs_user_input = True
     """
-    # Split the line
-    cols = split_line(line, analysis['separator'])
+    analysis = analyze_data_structure(data)
+    debug_log = []
     
-    if not cols or len(cols) == 0:
-        return None
+    if analysis.get("error"):
+        return [], analysis, [analysis["error"]]
     
-    # If we only got one column or very few columns, try aggressive parsing
-    if len(cols) <= 2:
-        return parse_single_column_line(line, current_date, year_hint)
+    if analysis["needs_user_input"]:
+        debug_log.append("Parser confidence too low - needs user input")
+        return [], analysis, debug_log
     
-    # Extract components based on detected structure
-    txn_date = current_date
-    description = None
-    amount = None
-    balance = None
+    # Build mapping from analysis
+    mapping = {
+        "separator": analysis["separator"],
+        "has_header": analysis["has_header"],
+        "skip_lines": 0,
+        "fields": {}
+    }
     
-    # Get date from column if detected
-    if analysis['date_column'] is not None and analysis['date_column'] < len(cols):
-        col_text = cols[analysis['date_column']]
-        parsed = parse_date(col_text, year_hint)
-        if parsed:
-            txn_date = parsed
-            # Check if this column also contains description (date + text)
-            # Extract the non-date part
-            remaining = col_text
-            for pattern, _ in DATE_PATTERNS:
-                match = re.match(pattern, col_text, re.IGNORECASE)
-                if match:
-                    remaining = col_text[match.end():].strip()
-                    break
-            if remaining and looks_like_description(remaining):
-                description = remaining
-    
-    # Get description from dedicated column if we don't have one yet
-    if not description:
-        if analysis['description_column'] is not None and analysis['description_column'] < len(cols):
-            description = cols[analysis['description_column']].strip()
-        else:
-            # Find the first text column that isn't date or amount
-            for i, col in enumerate(cols):
-                col_clean = col.strip()
-                if not col_clean:
-                    continue
-                # Skip if it's purely a date
-                if looks_like_date(col_clean) and len(col_clean) < 15:
-                    continue
-                # Skip if it's purely an amount
-                if looks_like_amount(col_clean):
-                    continue
-                # Check if it has a date prefix we should strip
-                for pattern, _ in DATE_PATTERNS:
-                    match = re.match(pattern, col_clean, re.IGNORECASE)
-                    if match:
-                        col_clean = col_clean[match.end():].strip()
-                        break
-                if col_clean and len(col_clean) > 2:
-                    description = col_clean
-                    break
-    
-    # Get amount - handle debit/credit layout
-    if analysis['debit_credit_layout'] and len(analysis['amount_columns']) >= 2:
-        debit_col = analysis['amount_columns'][0]
-        credit_col = analysis['amount_columns'][1]
+    # Find each field type
+    for col in analysis["columns"]:
+        col_type = col["type"]
+        col_idx = col["index"]
         
-        debit_val = None
-        credit_val = None
+        if col_type == "date" and "date" not in mapping["fields"]:
+            mapping["fields"]["date"] = {"column": col_idx}
+        elif col_type == "debit":
+            if "sign" not in mapping["fields"]:
+                mapping["fields"]["sign"] = {"debit_column": col_idx}
+            else:
+                mapping["fields"]["sign"]["debit_column"] = col_idx
+            if "amount" not in mapping["fields"]:
+                mapping["fields"]["amount"] = {"column": col_idx}
+        elif col_type == "credit":
+            if "sign" not in mapping["fields"]:
+                mapping["fields"]["sign"] = {"credit_column": col_idx}
+            else:
+                mapping["fields"]["sign"]["credit_column"] = col_idx
+            if "amount" not in mapping["fields"]:
+                mapping["fields"]["amount"] = {"column": col_idx}
+        elif col_type == "amount" and "amount" not in mapping["fields"]:
+            mapping["fields"]["amount"] = {"column": col_idx}
+        elif col_type == "balance":
+            mapping["fields"]["balance"] = {"column": col_idx}
+        elif col_type in ["description", "text"] and "description" not in mapping["fields"]:
+            mapping["fields"]["description"] = {"column": col_idx}
+    
+    # If we have separate debit/credit columns, handle sign logic
+    sign_cfg = mapping["fields"].get("sign", {})
+    if sign_cfg.get("debit_column") is not None and sign_cfg.get("credit_column") is not None:
+        # Remove amount if it points to debit column
+        if mapping["fields"].get("amount", {}).get("column") == sign_cfg["debit_column"]:
+            del mapping["fields"]["amount"]
+    
+    # Validate we have minimum required fields
+    if "amount" not in mapping["fields"] and "sign" not in mapping["fields"]:
+        analysis["needs_user_input"] = True
+        debug_log.append("Could not identify amount column")
+        return [], analysis, debug_log
+    
+    transactions, parse_log = parse_with_mapping(data, mapping)
+    debug_log.extend(parse_log)
+    
+    analysis["detected_mapping"] = mapping
+    
+    return transactions, analysis, debug_log
+
+
+def infer_sign_from_description(description: str) -> str:
+    """Infer if transaction is debit or credit from description keywords"""
+    desc_upper = description.upper()
+    
+    credit_keywords = [
+        'DEPOSIT', 'DIRECT DEP', 'CREDIT', 'REFUND', 'TRANSFER IN',
+        'WIRE IN', 'ACH CREDIT', 'INTEREST', 'DIVIDEND', 'REVERSAL',
+        'REBATE', 'CASHBACK', 'REIMBURSEMENT'
+    ]
+    
+    debit_keywords = [
+        'WITHDRAWAL', 'DEBIT', 'CHECK', 'PURCHASE', 'PAYMENT',
+        'TRANSFER OUT', 'WIRE OUT', 'ACH DEBIT', 'FEE', 'CHARGE',
+        'ATM', 'POS', 'BILL PAY'
+    ]
+    
+    for kw in credit_keywords:
+        if kw in desc_upper:
+            return "credit"
+    
+    for kw in debit_keywords:
+        if kw in desc_upper:
+            return "debit"
+    
+    return "debit"  # Default
+
+
+# Legacy compatibility functions
+def parse_web_pasted_data(data: str) -> Tuple[List[Dict], List[str]]:
+    """Legacy function - returns (transactions, debug_log)"""
+    transactions, analysis, debug_log = auto_parse_data(data)
+    
+    # If auto-parse failed but we have sample data, try harder
+    if not transactions and analysis.get("sample_data"):
+        debug_log.append("Attempting fallback line-by-line parse...")
+        transactions = []
+        current_date = date.today()
         
-        if debit_col < len(cols):
-            debit_val = parse_amount(cols[debit_col])
-        if credit_col < len(cols):
-            credit_val = parse_amount(cols[credit_col])
-        
-        if debit_val is not None and debit_val > 0:
-            amount = -abs(debit_val)  # Debits are negative (money out)
-        elif credit_val is not None and credit_val > 0:
-            amount = abs(credit_val)  # Credits are positive (money in)
-        elif debit_val is not None:
-            amount = -abs(debit_val)
-        elif credit_val is not None:
-            amount = abs(credit_val)
-    else:
-        # Single amount column or first amount found
-        for col_idx in analysis['amount_columns']:
-            if col_idx < len(cols):
-                parsed = parse_amount(cols[col_idx])
-                if parsed is not None:
+        for line in data.strip().split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Check for standalone date
+            parsed_date = parse_date(line)
+            if parsed_date and len(line) < 30:
+                current_date = parsed_date
+                continue
+            
+            # Find all amounts in line
+            amounts = re.findall(r'[$]?[\d,]+\.?\d*', line)
+            amount = None
+            for a in amounts:
+                parsed = parse_amount(a)
+                if parsed and parsed > 0:
                     amount = parsed
                     break
-        
-        # If still no amount, scan all columns
-        if amount is None:
-            for col in cols:
-                if looks_like_amount(col) and not looks_like_date(col):
-                    parsed = parse_amount(col)
-                    if parsed is not None:
-                        amount = parsed
-                        break
-    
-    # Get balance
-    if analysis['balance_column'] is not None and analysis['balance_column'] < len(cols):
-        balance = parse_amount(cols[analysis['balance_column']])
-    
-    # Validate we have minimum required data
-    if amount is None:
-        return None
-    
-    if not description:
-        # Last resort: build from available columns
-        desc_parts = []
-        for i, col in enumerate(cols):
-            if i != analysis['balance_column'] and i not in analysis['amount_columns']:
-                col_clean = col.strip()
-                # Skip pure dates
-                if looks_like_date(col_clean) and len(col_clean) < 15:
-                    continue
-                if col_clean:
-                    desc_parts.append(col_clean)
-        description = ' '.join(desc_parts) if desc_parts else 'Transaction'
-    
-    # If amount doesn't have a clear sign and we don't have debit/credit layout,
-    # try to infer sign from description
-    if amount > 0 and not analysis['debit_credit_layout']:
-        inferred_sign = infer_sign_from_description(description)
-        if inferred_sign == -1:
-            amount = -abs(amount)
-    
-    if txn_date is None:
-        txn_date = date.today()
-    
-    result = {
-        'date': txn_date.isoformat(),
-        'amount': round(amount, 2),
-        'description': description,
-    }
-    
-    if balance is not None:
-        result['balance'] = round(balance, 2)
-    
-    return result
-
-
-def parse_single_column_line(line: str, current_date: date, year_hint: int) -> Optional[Dict[str, Any]]:
-    """
-    Parse a line that came as a single column (no clear separators).
-    Try to extract date, description, and amount from the text.
-    """
-    # Try to find a date at the start
-    txn_date = current_date
-    remaining = line
-    
-    for pattern, format_type in DATE_PATTERNS:
-        match = re.match(pattern, line, re.IGNORECASE)
-        if match:
-            parsed = parse_date(match.group(0), year_hint)
-            if parsed:
-                txn_date = parsed
-                remaining = line[match.end():].strip()
-                break
-    
-    # Find amounts - look for monetary patterns
-    # Pattern: optional sign, optional $, digits with optional commas, optional decimal
-    amount_pattern = r'[\$\-\+]?\s*\(?\s*\$?\s*[\d,]+\.?\d{0,2}\s*\)?'
-    
-    amounts = []
-    amount_spans = []
-    for match in re.finditer(amount_pattern, remaining):
-        text = match.group().strip()
-        # Skip if it's just a small number that might be part of description
-        if not re.search(r'[\$\(\)]', text):  # No currency indicators
-            # Must have significant digits or decimal point
-            cleaned = re.sub(r'[,\s\-\+]', '', text)
-            if len(cleaned) < 2 or (len(cleaned) < 4 and '.' not in text):
-                continue
-        
-        val = parse_amount(text)
-        if val is not None and abs(val) >= 0.01:
-            amounts.append(val)
-            amount_spans.append((match.start(), match.end()))
-    
-    if not amounts:
-        return None
-    
-    # Last amount is likely balance if there are multiple and it's larger
-    if len(amounts) >= 2 and abs(amounts[-1]) > abs(amounts[0]) * 2:
-        amount = amounts[0]
-        balance = amounts[-1]
-        desc_end = amount_spans[0][0]
-    elif len(amounts) >= 2:
-        # First amount is transaction, last is balance
-        amount = amounts[0]
-        balance = amounts[-1]
-        desc_end = amount_spans[0][0]
-    else:
-        amount = amounts[0]
-        balance = None
-        desc_end = amount_spans[0][0]
-    
-    # Description is everything before the first amount
-    description = remaining[:desc_end].strip()
-    
-    # Clean up description - remove trailing punctuation and spaces
-    description = re.sub(r'[\s\-_\.]+$', '', description)
-    description = re.sub(r'\s+', ' ', description).strip()
-    
-    if not description:
-        description = 'Transaction'
-    
-    if txn_date is None:
-        txn_date = date.today()
-    
-    result = {
-        'date': txn_date.isoformat(),
-        'amount': round(amount, 2),
-        'description': description,
-    }
-    
-    if balance is not None:
-        result['balance'] = round(balance, 2)
-    
-    return result
-
-
-# ============================================================================
-# DUPLICATE DETECTION
-# ============================================================================
-
-def filter_duplicates(new_txns: List[Dict], existing_txns: List[Dict]) -> List[Dict]:
-    """Filter out transactions that already exist."""
-    # Create a set of (date, amount, description_prefix) for existing
-    existing_set = set()
-    for txn in existing_txns:
-        key = (
-            txn.get('date', ''),
-            round(txn.get('amount', 0), 2),
-            txn.get('description', '')[:20].upper()
-        )
-        existing_set.add(key)
-    
-    filtered = []
-    for txn in new_txns:
-        key = (
-            txn.get('date', ''),
-            round(txn.get('amount', 0), 2),
-            txn.get('description', '')[:20].upper()
-        )
-        if key not in existing_set:
-            filtered.append(txn)
-    
-    return filtered
-
-
-# ============================================================================
-# DATABASE INTEGRATION FUNCTIONS
-# ============================================================================
-
-def ingest_bank_csv(raw_data: str, user_id: int, db) -> Dict[str, Any]:
-    """
-    Parse bank data and store transactions in the database.
-    
-    Args:
-        raw_data: Raw pasted/uploaded bank data
-        user_id: ID of the user
-        db: Database session
-        
-    Returns:
-        Dict with 'imported', 'skipped', 'errors' counts
-    """
-    from ..models import Transaction
-    
-    # Parse the data
-    transactions, debug = parse_web_pasted_data(raw_data)
-    
-    if not transactions:
-        return {
-            'imported': 0,
-            'skipped': 0,
-            'errors': len(debug),
-            'debug': debug
-        }
-    
-    # Get existing transactions to filter duplicates
-    existing = db.query(Transaction).filter(Transaction.user_id == user_id).all()
-    existing_list = [
-        {'date': t.date.isoformat() if t.date else '', 'amount': t.amount, 'description': t.description}
-        for t in existing
-    ]
-    
-    # Filter duplicates
-    new_txns = filter_duplicates(transactions, existing_list)
-    
-    # Insert new transactions
-    imported = 0
-    for txn in new_txns:
-        try:
-            t = Transaction(
-                user_id=user_id,
-                date=date.fromisoformat(txn['date']) if isinstance(txn['date'], str) else txn['date'],
-                amount=txn['amount'],
-                description=txn['description'],
-                balance=txn.get('balance')
-            )
-            db.add(t)
-            imported += 1
-        except Exception as e:
-            debug.append(f"Error inserting transaction: {e}")
-    
-    db.commit()
-    
-    return {
-        'imported': imported,
-        'skipped': len(transactions) - len(new_txns),
-        'total_parsed': len(transactions),
-        'errors': 0,
-        'debug': debug
-    }
-
-
-def ingest_quickbooks_data(data: Dict, user_id: int, db) -> Dict[str, Any]:
-    """
-    Import transactions from QuickBooks data.
-    
-    Args:
-        data: QuickBooks API response data
-        user_id: ID of the user
-        db: Database session
-        
-    Returns:
-        Dict with import statistics
-    """
-    from ..models import Transaction
-    
-    # QuickBooks data format varies - this handles common formats
-    transactions = []
-    
-    # Try to extract transactions from various QuickBooks response formats
-    if isinstance(data, dict):
-        # Check for common QuickBooks report structures
-        if 'Rows' in data:
-            rows = data.get('Rows', {}).get('Row', [])
-            for row in rows:
-                if 'ColData' in row:
-                    cols = row['ColData']
-                    # Try to extract date, description, amount
-                    if len(cols) >= 3:
-                        transactions.append({
-                            'date': cols[0].get('value', ''),
-                            'description': cols[1].get('value', 'QuickBooks Transaction'),
-                            'amount': float(cols[2].get('value', 0) or 0)
-                        })
-        elif 'QueryResponse' in data:
-            # Journal entries or other transactions
-            items = data.get('QueryResponse', {}).get('JournalEntry', [])
-            for item in items:
-                transactions.append({
-                    'date': item.get('TxnDate', date.today().isoformat()),
-                    'description': item.get('DocNumber', 'QuickBooks Entry'),
-                    'amount': float(item.get('TotalAmt', 0) or 0)
-                })
-    
-    if not transactions:
-        return {'imported': 0, 'skipped': 0, 'errors': 0, 'message': 'No transactions found in data'}
-    
-    # Get existing transactions
-    existing = db.query(Transaction).filter(Transaction.user_id == user_id).all()
-    existing_list = [
-        {'date': t.date.isoformat() if t.date else '', 'amount': t.amount, 'description': t.description}
-        for t in existing
-    ]
-    
-    # Filter duplicates
-    new_txns = filter_duplicates(transactions, existing_list)
-    
-    # Insert
-    imported = 0
-    for txn in new_txns:
-        try:
-            txn_date = txn['date']
-            if isinstance(txn_date, str):
-                txn_date = date.fromisoformat(txn_date) if txn_date else date.today()
             
-            t = Transaction(
-                user_id=user_id,
-                date=txn_date,
-                amount=txn['amount'],
-                description=txn['description']
-            )
-            db.add(t)
-            imported += 1
-        except Exception:
-            pass
+            if not amount:
+                continue
+            
+            # Description is everything that's not a number
+            desc = re.sub(r'[$]?[\d,]+\.?\d*', '', line).strip()
+            desc = re.sub(r'\s+', ' ', desc)
+            
+            # Infer sign
+            sign = infer_sign_from_description(desc)
+            
+            transactions.append({
+                "date": current_date,
+                "amount": amount,
+                "signed_amount": -amount if sign == "debit" else amount,
+                "description": desc,
+                "type": sign
+            })
+    
+    return transactions, debug_log
+
+
+def ingest_bank_data(db, user_id: int, data: str, raw_file_id: str = None) -> Dict[str, Any]:
+    """Ingest bank data into database"""
+    from ..models import Transaction
+    
+    transactions, debug_log = parse_web_pasted_data(data)
+    
+    saved = 0
+    duplicates = 0
+    
+    for txn in transactions:
+        # Check for duplicate
+        existing = db.query(Transaction).filter(
+            Transaction.user_id == user_id,
+            Transaction.date == txn["date"],
+            Transaction.amount == txn.get("signed_amount", txn["amount"]),
+            Transaction.description == txn.get("description", "")
+        ).first()
+        
+        if existing:
+            duplicates += 1
+            continue
+        
+        new_txn = Transaction(
+            user_id=user_id,
+            date=txn["date"],
+            amount=txn.get("signed_amount", txn["amount"]),
+            description=txn.get("description", ""),
+            balance=txn.get("balance"),
+            raw_file_id=raw_file_id
+        )
+        db.add(new_txn)
+        saved += 1
     
     db.commit()
     
     return {
-        'imported': imported,
-        'skipped': len(transactions) - len(new_txns),
-        'total_parsed': len(transactions),
-        'errors': 0
+        "saved": saved,
+        "duplicates": duplicates,
+        "total_parsed": len(transactions)
     }
+
+
+def ingest_bank_csv(db, user_id: int, file_content: str, filename: str) -> Dict[str, Any]:
+    """Ingest CSV file"""
+    return ingest_bank_data(db, user_id, file_content, raw_file_id=filename)
