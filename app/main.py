@@ -186,7 +186,9 @@ async def set_company_info(req: CompanyInfoRequest, user: User = Depends(get_cur
 async def upload_bank_data(file: UploadFile = File(...), user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Step 2: Upload bank data (CSV or paste)"""
     content = await file.read()
-    result = ingest_bank_csv(db, user.id, content, raw_file_id=file.filename or "")
+    text = content.decode('utf-8', errors='ignore')
+    from .services.ingest import ingest_bank_data
+    result = ingest_bank_data(db, user.id, text, raw_file_id=file.filename or "")
     
     user.onboarding_step = max(user.onboarding_step, 2)
     db.commit()
@@ -200,7 +202,8 @@ async def upload_bank_data(file: UploadFile = File(...), user: User = Depends(ge
 @app.post("/onboarding/paste-data")
 async def paste_bank_data(data: str = Body(..., embed=True), user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Step 2 alternative: Paste bank data"""
-    result = ingest_bank_csv(db, user.id, data.encode('utf-8'), raw_file_id="pasted")
+    from .services.ingest import ingest_bank_data
+    result = ingest_bank_data(db, user.id, data, raw_file_id="pasted")
     
     user.onboarding_step = max(user.onboarding_step, 2)
     db.commit()
@@ -209,6 +212,33 @@ async def paste_bank_data(data: str = Body(..., embed=True), user: User = Depend
         "ok": True,
         "step": 2,
         "imported": result
+    }
+
+@app.post("/import")
+async def import_data(data: str = Body(..., embed=True), user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Import bank data (post-onboarding)"""
+    from .services.ingest import ingest_bank_data
+    result = ingest_bank_data(db, user.id, data, raw_file_id="import")
+    return {"ok": True, "result": result}
+
+@app.post("/import/debug")
+async def import_data_debug(data: str = Body(..., embed=True), user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Import with full debug output - doesn't save to DB"""
+    from .services.ingest import parse_web_pasted_data
+    transactions, debug_log = parse_web_pasted_data(data)
+    return {
+        "ok": True,
+        "parsed_count": len(transactions),
+        "transactions": [
+            {
+                "date": t["date"].isoformat(),
+                "amount": t["amount"],
+                "description": t["description"][:50],
+                "balance": t.get("balance")
+            }
+            for t in transactions[:20]
+        ],
+        "debug": debug_log
     }
 
 @app.get("/onboarding/suggest-groups")
