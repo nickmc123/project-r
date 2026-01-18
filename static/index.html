@@ -901,6 +901,59 @@
                 <span id="authToggleText">Don't have an account?</span>
                 <a href="#" id="authToggle">Sign Up</a>
             </p>
+            
+            <p class="auth-toggle" id="forgotPasswordLink" style="margin-top: 12px;">
+                <a href="#" onclick="showForgotPassword(); return false;">Forgot Password?</a>
+            </p>
+        </div>
+    </div>
+    
+    <!-- Forgot Password Screen -->
+    <div id="forgotPassword" class="screen">
+        <div class="auth-container">
+            <div class="logo-large">📊</div>
+            <h1 class="app-title">Reset Password</h1>
+            <p class="app-subtitle">Enter your email to receive a reset link</p>
+            
+            <form class="auth-form" onsubmit="handleForgotPassword(event)">
+                <div id="forgotMessage"></div>
+                
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="forgotEmail" required placeholder="you@company.com">
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Send Reset Link</button>
+            </form>
+            
+            <p class="auth-toggle" style="margin-top: 24px;">
+                <a href="#" onclick="showScreen('auth'); return false;">← Back to Login</a>
+            </p>
+        </div>
+    </div>
+    
+    <!-- Reset Password Screen -->
+    <div id="resetPassword" class="screen">
+        <div class="auth-container">
+            <div class="logo-large">🔐</div>
+            <h1 class="app-title">Set New Password</h1>
+            <p class="app-subtitle">Enter your new password</p>
+            
+            <form class="auth-form" onsubmit="handleResetPassword(event)">
+                <div id="resetMessage"></div>
+                
+                <div class="form-group">
+                    <label>New Password</label>
+                    <input type="password" id="resetNewPassword" required placeholder="••••••••" minlength="6">
+                </div>
+                
+                <div class="form-group">
+                    <label>Confirm Password</label>
+                    <input type="password" id="resetConfirmPassword" required placeholder="••••••••" minlength="6">
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Reset Password</button>
+            </form>
         </div>
     </div>
     
@@ -1352,6 +1405,62 @@
                 document.getElementById('authMessage').innerHTML = `<div class="message message-error">${err.message}</div>`;
             }
         };
+        
+        // Forgot Password
+        let resetToken = null;
+        
+        const showForgotPassword = () => {
+            showScreen('forgotPassword');
+            document.getElementById('forgotEmail').value = '';
+            document.getElementById('forgotMessage').innerHTML = '';
+        };
+        
+        const handleForgotPassword = async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('forgotEmail').value;
+            
+            try {
+                await api('/auth/forgot-password', 'POST', { email });
+                document.getElementById('forgotMessage').innerHTML = `
+                    <div class="message message-success">
+                        If that email exists, a reset link has been sent.<br>
+                        <small style="opacity: 0.8;">Check your email or contact support for the reset link.</small>
+                    </div>`;
+            } catch (err) {
+                document.getElementById('forgotMessage').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const handleResetPassword = async (e) => {
+            e.preventDefault();
+            const newPass = document.getElementById('resetNewPassword').value;
+            const confirmPass = document.getElementById('resetConfirmPassword').value;
+            
+            if (newPass !== confirmPass) {
+                document.getElementById('resetMessage').innerHTML = `<div class="message message-error">Passwords do not match</div>`;
+                return;
+            }
+            
+            if (newPass.length < 6) {
+                document.getElementById('resetMessage').innerHTML = `<div class="message message-error">Password must be at least 6 characters</div>`;
+                return;
+            }
+            
+            try {
+                await api('/auth/reset-password', 'POST', { token: resetToken, new_password: newPass });
+                document.getElementById('resetMessage').innerHTML = `<div class="message message-success">Password reset successfully! Redirecting to login...</div>`;
+                setTimeout(() => showScreen('auth'), 2000);
+            } catch (err) {
+                document.getElementById('resetMessage').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        // Check for reset token in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('reset_token')) {
+            resetToken = urlParams.get('reset_token');
+            showScreen('resetPassword');
+        }
         
         // Onboarding Step 1: Company Info
         const submitCompanyInfo = async () => {
