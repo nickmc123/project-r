@@ -231,9 +231,9 @@ async def import_data_debug(data: str = Body(..., embed=True), user: User = Depe
         "parsed_count": len(transactions),
         "transactions": [
             {
-                "date": t["date"].isoformat(),
+                "date": t["date"].isoformat() if t.get("date") else None,
                 "amount": t["amount"],
-                "description": t["description"][:50],
+                "description": t.get("description", "")[:50] if t.get("description") else "",
                 "balance": t.get("balance")
             }
             for t in transactions[:20]
