@@ -12,6 +12,16 @@ import json
 
 # Question patterns with intent classification
 QUESTION_PATTERNS = [
+    # What-if scenarios (check first - most specific)
+    (r'what.if.*(add|another|extra|more|increase).*([\d,]+k?).*(revenue|income|sales|week|month)', 'whatif_add_revenue'),
+    (r'what.if.*(add|another|extra|more|increase).*([\d,]+k?)', 'whatif_add_revenue'),
+    (r'what.if.*(reduce|cut|decrease|less|lower).*(expense|cost|spend).*([\d,]+k?)', 'whatif_reduce_expense'),
+    (r'what.if.*(reduce|cut|decrease|less|lower).*([\d,]+k?)', 'whatif_reduce_expense'),
+    (r'what.if.*([\d,]+k?).*(more|extra|additional).*(revenue|income|sales)', 'whatif_add_revenue'),
+    (r'what.if.*([\d,]+k?).*(less|lower|reduce).*(expense|cost)', 'whatif_reduce_expense'),
+    (r'(add|increase).*([\d,]+k?).*(week|month|revenue|income)', 'whatif_add_revenue'),
+    (r'(reduce|cut|decrease).*(expense|cost).*([\d,]+k?)', 'whatif_reduce_expense'),
+    
     # Balance questions
     (r'(what|how much).*(balance|have|got|money)', 'current_balance'),
     (r'balance.*(today|now|current)', 'current_balance'),
@@ -115,36 +125,62 @@ class QuestionInterpreter:
         Classify a question and extract parameters.
         Returns (intent, params)
         """
-        question = question.strip().lower()
+        question_lower = question.strip().lower()
         
         # Extract numeric parameters
         params = {}
         
         # Look for day counts
-        day_match = re.search(r'(\d+)\s*day', question)
+        day_match = re.search(r'(\d+)\s*day', question_lower)
         if day_match:
             params['days'] = int(day_match.group(1))
         
         # Look for week counts
-        week_match = re.search(r'(\d+)\s*week', question)
+        week_match = re.search(r'(\d+)\s*week', question_lower)
         if week_match:
             params['weeks'] = int(week_match.group(1))
             params['days'] = params.get('days', 0) + int(week_match.group(1)) * 7
         
         # Look for month counts
-        month_match = re.search(r'(\d+)\s*month', question)
+        month_match = re.search(r'(\d+)\s*month', question_lower)
         if month_match:
             params['months'] = int(month_match.group(1))
             params['days'] = params.get('days', 0) + int(month_match.group(1)) * 30
         
-        # Look for dollar amounts
-        amount_match = re.search(r'\$?([\d,]+)', question)
-        if amount_match:
-            params['amount'] = float(amount_match.group(1).replace(',', ''))
+        # Look for dollar amounts with k/K suffix (e.g., 5k, $10K)
+        amount_matches = re.findall(r'\$?([\d,]+)\s*k', question_lower, re.IGNORECASE)
+        if amount_matches:
+            # Convert "5k" to 5000
+            params['amount'] = float(amount_matches[0].replace(',', '')) * 1000
+        else:
+            # Look for regular dollar amounts
+            amount_match = re.search(r'\$?([\d,]+)(?!k)', question_lower)
+            if amount_match:
+                val = float(amount_match.group(1).replace(',', ''))
+                # If it's a small number, likely meant as thousands
+                if val < 100:
+                    params['amount'] = val * 1000
+                else:
+                    params['amount'] = val
+        
+        # Determine frequency for what-if scenarios
+        if 'week' in question_lower:
+            params['frequency'] = 'weekly'
+            params['multiplier'] = 4.33  # weeks per month
+        elif 'month' in question_lower:
+            params['frequency'] = 'monthly'
+            params['multiplier'] = 1
+        elif 'day' in question_lower:
+            params['frequency'] = 'daily'
+            params['multiplier'] = 30  # days per month
+        else:
+            # Default to weekly for revenue additions
+            params['frequency'] = 'weekly'
+            params['multiplier'] = 4.33
         
         # Match against patterns
         for pattern, intent in self.patterns:
-            if pattern.search(question):
+            if pattern.search(question_lower):
                 return intent, params
         
         # Default to general forecast if no match
@@ -337,6 +373,14 @@ class ResponseGenerator:
             response = "Historical comparison coming soon! For now, I can tell you about your current forecast."
             return response
         
+        elif intent == 'whatif_add_revenue':
+            response = self._generate_whatif_revenue_response(forecast_data, params)
+            return response
+        
+        elif intent == 'whatif_reduce_expense':
+            response = self._generate_whatif_expense_response(forecast_data, params)
+            return response
+        
         else:
             # General response
             response = self._generate_summary_response(forecast_data)
@@ -398,6 +442,94 @@ class ResponseGenerator:
             return f"⚠️ You could pay {self.format_currency(amount)}, but it would leave you tight around {self.format_date(low_date)} with only {self.format_currency(buffer_after)} buffer."
         else:
             return f"❌ Paying {self.format_currency(amount)} would put you negative around {self.format_date(low_date)}. I'd wait or find additional revenue first."
+    
+    def _generate_whatif_revenue_response(self, data: Dict, params: Dict) -> str:
+        """Generate response for what-if revenue addition scenarios."""
+        amount = params.get('amount', 0)
+        frequency = params.get('frequency', 'weekly')
+        multiplier = params.get('multiplier', 4.33)
+        
+        if amount == 0:
+            return "I'd love to run that scenario! How much additional revenue are you thinking? (e.g., '$5K per week')"
+        
+        # Calculate monthly impact
+        monthly_impact = amount * multiplier
+        
+        # Get current data
+        current_balance = data.get('current_balance', 0)
+        low_point = data.get('low_point', {})
+        current_profit = data.get('profit_30d', 0)
+        
+        low_amount = low_point.get('amount', current_balance) if low_point else current_balance
+        low_date = low_point.get('date', '') if low_point else ''
+        
+        # Calculate adjusted values
+        adjusted_low = low_amount + (monthly_impact / 2)  # Assume half-month average impact
+        adjusted_profit = current_profit + monthly_impact
+        
+        response = f"**📈 What-If Scenario: +{self.format_currency(amount)}/{frequency}**\n\n"
+        response += f"That would add **{self.format_currency(monthly_impact)}/month** to your cash flow!\n\n"
+        response += f"**Current → Adjusted:**\n"
+        response += f"- 30-Day Cash Change: {self.format_currency(current_profit)} → **{self.format_currency(adjusted_profit)}**\n"
+        
+        if low_point:
+            response += f"- Low Point ({self.format_date(low_date)}): {self.format_currency(low_amount)} → **{self.format_currency(adjusted_low)}**\n"
+        
+        # Add assessment
+        if adjusted_low > 50000:
+            response += "\n✅ **That would give you a comfortable cushion!**"
+        elif adjusted_low > 20000:
+            response += "\n👍 **Much better - that helps your margins significantly.**"
+        elif adjusted_low > 0:
+            response += "\n⚠️ **Better, but still tight at the low point.**"
+        else:
+            response += "\n❌ **Even with this increase, you'd still hit negative. Need more!**"
+        
+        return response
+    
+    def _generate_whatif_expense_response(self, data: Dict, params: Dict) -> str:
+        """Generate response for what-if expense reduction scenarios."""
+        amount = params.get('amount', 0)
+        frequency = params.get('frequency', 'monthly')
+        multiplier = params.get('multiplier', 1)
+        
+        if amount == 0:
+            return "I'd love to run that scenario! How much expense reduction are you thinking? (e.g., 'reduce expenses by $10K')"
+        
+        # Calculate monthly impact (expense reductions are positive to cash flow)
+        monthly_impact = amount * multiplier
+        
+        # Get current data
+        current_balance = data.get('current_balance', 0)
+        low_point = data.get('low_point', {})
+        current_profit = data.get('profit_30d', 0)
+        
+        low_amount = low_point.get('amount', current_balance) if low_point else current_balance
+        low_date = low_point.get('date', '') if low_point else ''
+        
+        # Calculate adjusted values
+        adjusted_low = low_amount + (monthly_impact / 2)  # Assume half-month average impact
+        adjusted_profit = current_profit + monthly_impact
+        
+        response = f"**📉 What-If Scenario: Cut {self.format_currency(amount)}/month in expenses**\n\n"
+        response += f"That would save **{self.format_currency(monthly_impact)}/month**!\n\n"
+        response += f"**Current → Adjusted:**\n"
+        response += f"- 30-Day Cash Change: {self.format_currency(current_profit)} → **{self.format_currency(adjusted_profit)}**\n"
+        
+        if low_point:
+            response += f"- Low Point ({self.format_date(low_date)}): {self.format_currency(low_amount)} → **{self.format_currency(adjusted_low)}**\n"
+        
+        # Add assessment
+        if adjusted_low > 50000:
+            response += "\n✅ **That puts you in great shape!**"
+        elif adjusted_low > 20000:
+            response += "\n👍 **Nice improvement - much more breathing room.**"
+        elif adjusted_low > 0:
+            response += "\n⚠️ **Helps, but you're still pretty tight at the low point.**"
+        else:
+            response += "\n❌ **Even with this cut, projections still go negative. Need more adjustments.**"
+        
+        return response
     
     def _generate_summary_response(self, data: Dict) -> str:
         """Generate a general summary response."""
