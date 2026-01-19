@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from .db import engine, get_db
-from .models import Base, User, Transaction, TransactionGroup, ScheduleRule, TrendSentiment, CATEGORIES
+from .models import Base, User, Transaction, TransactionGroup, ScheduleRule, TrendSentiment, GroupCorrelation, CATEGORIES
 from .auth import hash_pw, verify_pw, create_token, get_current_user
 from .services.ingest import ingest_bank_csv, ingest_quickbooks_data
 from .services.categorize import (
@@ -996,6 +996,329 @@ def get_group_trend(group_id: int, user: User = Depends(get_current_user), db: S
     """Analyze trend for a group"""
     return analyze_trends(db, user.id, group_id)
 
+class UpdateGroupRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    stream_type: Optional[str] = None
+    frequency: Optional[str] = None
+    trend: Optional[str] = None  # 'up', 'down', 'flat'
+    # New trend adjustment fields
+    adjusted_trend_percent: Optional[float] = None
+    trend_period: Optional[str] = None  # day|week|month
+    trend_duration_days: Optional[int] = None
+    trend_then: Optional[str] = None  # flat|up|down
+    trend_then_percent: Optional[float] = None
+
+@app.patch("/groups/{group_id}")
+def update_group(group_id: int, req: UpdateGroupRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Update group properties"""
+    group = db.query(TransactionGroup).filter(
+        TransactionGroup.id == group_id,
+        TransactionGroup.user_id == user.id
+    ).first()
+    
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    if req.name is not None:
+        group.name = req.name
+    if req.description is not None:
+        group.description = req.description
+    if req.stream_type is not None:
+        group.stream_type = req.stream_type
+    if req.frequency is not None:
+        group.frequency = req.frequency
+    if req.trend is not None:
+        group.trend = req.trend
+    # New trend fields
+    if req.adjusted_trend_percent is not None:
+        group.adjusted_trend_percent = req.adjusted_trend_percent
+    if req.trend_period is not None:
+        group.trend_period = req.trend_period
+    if req.trend_duration_days is not None:
+        group.trend_duration_days = req.trend_duration_days
+    if req.trend_then is not None:
+        group.trend_then = req.trend_then
+    if req.trend_then_percent is not None:
+        group.trend_then_percent = req.trend_then_percent
+    
+    db.commit()
+    return {"ok": True, "id": group.id}
+
+class BatchMoveRequest(BaseModel):
+    transaction_ids: List[int]
+    group_id: Optional[int] = None
+
+@app.post("/transactions/batch-move")
+def batch_move_transactions(req: BatchMoveRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Move multiple transactions to a category"""
+    # Verify group belongs to user if specified
+    if req.group_id is not None:
+        group = db.query(TransactionGroup).filter(
+            TransactionGroup.id == req.group_id,
+            TransactionGroup.user_id == user.id
+        ).first()
+        if not group:
+            raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Update transactions
+    updated = db.query(Transaction).filter(
+        Transaction.id.in_(req.transaction_ids),
+        Transaction.user_id == user.id
+    ).update({Transaction.group_id: req.group_id}, synchronize_session=False)
+    
+    db.commit()
+    return {"ok": True, "updated": updated}
+
+class BatchDeleteRequest(BaseModel):
+    transaction_ids: List[int]
+
+@app.post("/transactions/batch-delete")
+def batch_delete_transactions(req: BatchDeleteRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Delete multiple transactions"""
+    deleted = db.query(Transaction).filter(
+        Transaction.id.in_(req.transaction_ids),
+        Transaction.user_id == user.id
+    ).delete(synchronize_session=False)
+    
+    db.commit()
+    return {"ok": True, "deleted": deleted}
+
+# ============ CORRELATIONS ============
+
+class CreateCorrelationRequest(BaseModel):
+    source_group_id: int
+    target_group_id: int
+    direction: str  # 'same' or 'opposite'
+    percent: float  # e.g., 50 means 50% of source change
+    delay_value: int = 0
+    delay_unit: str = "days"  # days|weeks|months
+
+@app.get("/groups/{group_id}/correlations")
+def get_group_correlations(group_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get correlations where this group is the source (trigger)"""
+    correlations = db.query(GroupCorrelation).filter(
+        GroupCorrelation.source_group_id == group_id,
+        GroupCorrelation.user_id == user.id
+    ).all()
+    
+    # Get target group names
+    result = []
+    for c in correlations:
+        target_group = db.query(TransactionGroup).filter(TransactionGroup.id == c.target_group_id).first()
+        result.append({
+            "id": c.id,
+            "target_group_id": c.target_group_id,
+            "target_group_name": target_group.name if target_group else "Unknown",
+            "direction": c.direction,
+            "percent": float(c.percent),
+            "delay_value": c.delay_value,
+            "delay_unit": c.delay_unit
+        })
+    
+    return result
+
+@app.post("/correlations")
+def create_correlation(req: CreateCorrelationRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Create a correlation between groups"""
+    # Verify both groups belong to user
+    source = db.query(TransactionGroup).filter(
+        TransactionGroup.id == req.source_group_id,
+        TransactionGroup.user_id == user.id
+    ).first()
+    target = db.query(TransactionGroup).filter(
+        TransactionGroup.id == req.target_group_id,
+        TransactionGroup.user_id == user.id
+    ).first()
+    
+    if not source or not target:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    if req.source_group_id == req.target_group_id:
+        raise HTTPException(status_code=400, detail="Cannot correlate a group with itself")
+    
+    # Check for existing
+    existing = db.query(GroupCorrelation).filter(
+        GroupCorrelation.source_group_id == req.source_group_id,
+        GroupCorrelation.target_group_id == req.target_group_id,
+        GroupCorrelation.user_id == user.id
+    ).first()
+    
+    if existing:
+        # Update existing
+        existing.direction = req.direction
+        existing.percent = req.percent
+        existing.delay_value = req.delay_value
+        existing.delay_unit = req.delay_unit
+    else:
+        # Create new
+        corr = GroupCorrelation(
+            user_id=user.id,
+            source_group_id=req.source_group_id,
+            target_group_id=req.target_group_id,
+            direction=req.direction,
+            percent=req.percent,
+            delay_value=req.delay_value,
+            delay_unit=req.delay_unit
+        )
+        db.add(corr)
+    
+    db.commit()
+    return {"ok": True}
+
+@app.delete("/correlations/{correlation_id}")
+def delete_correlation(correlation_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Delete a correlation"""
+    deleted = db.query(GroupCorrelation).filter(
+        GroupCorrelation.id == correlation_id,
+        GroupCorrelation.user_id == user.id
+    ).delete()
+    
+    db.commit()
+    return {"ok": True, "deleted": deleted}
+
+# Get all correlations for forecast calculations
+@app.get("/correlations")
+def get_all_correlations(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get all user correlations"""
+    correlations = db.query(GroupCorrelation).filter(
+        GroupCorrelation.user_id == user.id
+    ).all()
+    
+    result = []
+    for c in correlations:
+        source = db.query(TransactionGroup).filter(TransactionGroup.id == c.source_group_id).first()
+        target = db.query(TransactionGroup).filter(TransactionGroup.id == c.target_group_id).first()
+        result.append({
+            "id": c.id,
+            "source_group_id": c.source_group_id,
+            "source_group_name": source.name if source else "Unknown",
+            "target_group_id": c.target_group_id,
+            "target_group_name": target.name if target else "Unknown",
+            "direction": c.direction,
+            "percent": float(c.percent),
+            "delay_value": c.delay_value,
+            "delay_unit": c.delay_unit
+        })
+    
+    return result
+
+# ============ TREND ANALYSIS ============
+
+@app.get("/groups/{group_id}/trend-detail")
+def get_group_trend_detail(group_id: int, period: str = "week", user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get detailed trend analysis for a group with transactions by week or month"""
+    from sqlalchemy import func
+    
+    group = db.query(TransactionGroup).filter(
+        TransactionGroup.id == group_id,
+        TransactionGroup.user_id == user.id
+    ).first()
+    
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Get transactions for this group
+    txns = db.query(Transaction).filter(
+        Transaction.group_id == group_id,
+        Transaction.user_id == user.id
+    ).order_by(Transaction.date.desc()).all()
+    
+    if not txns:
+        return {
+            "group": {
+                "id": group.id,
+                "name": group.name,
+                "stream_type": group.stream_type,
+                "frequency": group.frequency,
+                "calculated_trend_percent": 0,
+                "adjusted_trend_percent": None,
+                "trend_period": group.trend_period,
+                "trend_duration_days": group.trend_duration_days,
+                "trend_then": group.trend_then,
+                "trend_then_percent": None
+            },
+            "periods": [],
+            "trend_direction": "flat",
+            "trend_percent": 0
+        }
+    
+    # Group by period
+    from collections import defaultdict
+    periods = defaultdict(lambda: {"total": 0, "count": 0, "transactions": []})
+    
+    for t in txns:
+        if period == "week":
+            # Get ISO week
+            d = t.date if isinstance(t.date, date) else datetime.strptime(t.date, "%Y-%m-%d").date()
+            year, week, _ = d.isocalendar()
+            key = f"{year}-W{week:02d}"
+        else:  # month
+            d = t.date if isinstance(t.date, date) else datetime.strptime(t.date, "%Y-%m-%d").date()
+            key = f"{d.year}-{d.month:02d}"
+        
+        periods[key]["total"] += float(t.amount)
+        periods[key]["count"] += 1
+        periods[key]["transactions"].append({
+            "id": t.id,
+            "date": str(t.date),
+            "description": t.description,
+            "amount": float(t.amount)
+        })
+    
+    # Sort periods
+    sorted_periods = sorted(periods.items(), reverse=True)
+    period_list = []
+    for key, data in sorted_periods[:12]:  # Last 12 periods
+        period_list.append({
+            "period": key,
+            "total": round(data["total"], 2),
+            "count": data["count"],
+            "transactions": data["transactions"]
+        })
+    
+    # Calculate trend from periods
+    if len(period_list) >= 2:
+        recent_total = sum(p["total"] for p in period_list[:3]) / min(3, len(period_list))
+        older_total = sum(p["total"] for p in period_list[3:6]) / max(1, min(3, len(period_list) - 3))
+        
+        if older_total != 0:
+            change_percent = ((recent_total - older_total) / abs(older_total)) * 100
+        else:
+            change_percent = 0
+        
+        if change_percent > 5:
+            trend_direction = "up"
+        elif change_percent < -5:
+            trend_direction = "down"
+        else:
+            trend_direction = "flat"
+    else:
+        change_percent = 0
+        trend_direction = "flat"
+    
+    # Update calculated trend in DB
+    group.calculated_trend_percent = change_percent
+    db.commit()
+    
+    return {
+        "group": {
+            "id": group.id,
+            "name": group.name,
+            "stream_type": group.stream_type,
+            "frequency": group.frequency,
+            "calculated_trend_percent": round(change_percent, 1),
+            "adjusted_trend_percent": float(group.adjusted_trend_percent) if group.adjusted_trend_percent else None,
+            "trend_period": group.trend_period,
+            "trend_duration_days": group.trend_duration_days,
+            "trend_then": group.trend_then,
+            "trend_then_percent": float(group.trend_then_percent) if group.trend_then_percent else None
+        },
+        "periods": period_list,
+        "trend_direction": trend_direction,
+        "trend_percent": round(change_percent, 1)
+    }
+
 @app.post("/trends/sentiment")
 def set_trend_sentiment(req: TrendSentimentRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Set user sentiment on a trend"""
@@ -1226,8 +1549,9 @@ async def ask_question_get(
         g["id"]: {
             "name": g["name"],
             "type": "credit" if g["stream_type"] == "inflow" else "debit",
-            "total": g["total"],
-            "net_total": g["net_total"],
+            "total": g.get("net_amount", 0),
+            "net_total": g.get("net_amount", 0),
+            "trend": g.get("trend", "flat"),
         }
         for g in groups
     }
@@ -1287,8 +1611,9 @@ async def ask_question_post(
         g["id"]: {
             "name": g["name"],
             "type": "credit" if g["stream_type"] == "inflow" else "debit",
-            "total": g["total"],
-            "net_total": g["net_total"],
+            "total": g.get("net_amount", 0),
+            "net_total": g.get("net_amount", 0),
+            "trend": g.get("trend", "flat"),
         }
         for g in groups
     }
