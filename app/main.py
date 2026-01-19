@@ -1039,6 +1039,8 @@ def get_group_trend_detail(
     
     for t in txns:
         txn_date = t.date
+        if txn_date is None:
+            continue  # Skip transactions without dates
         if period == "weekly":
             # Start of week (Monday)
             start_of_week = txn_date - timedelta(days=txn_date.weekday())
