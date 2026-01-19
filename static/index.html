@@ -32,9 +32,10 @@
             overflow-x: hidden;
         }
         
-        .screen { display: none; height: 100vh; padding: 20px; overflow: hidden; }
+        .screen { display: none; min-height: 100vh; padding: 20px; padding-bottom: 40px; overflow-y: auto; }
         .screen.active { display: flex; flex-direction: column; }
-        #auth.active { overflow: hidden; }
+        #auth.active { overflow: hidden; height: 100vh; }
+        #dashboard { padding-bottom: 60px; }
         
         /* Auth Screen */
         .auth-container {
