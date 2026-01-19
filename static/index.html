@@ -1234,7 +1234,16 @@
         
         <div class="stat-card" style="margin-bottom:20px;">
             <div class="stat-label">30-Day Projected Cash Change</div>
-            <div class="stat-value" id="monthlyProfit">—</div>
+            <div style="display:flex;justify-content:space-around;margin-top:8px;">
+                <div style="text-align:center;">
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Calculated</div>
+                    <div class="stat-value" id="monthlyProfitCalc" style="font-size:18px;">—</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Adjusted</div>
+                    <div class="stat-value" id="monthlyProfitAdj" style="font-size:18px;">—</div>
+                </div>
+            </div>
         </div>
         
         <div class="action-grid">
@@ -2049,7 +2058,8 @@
                 document.getElementById('lowPointDate').textContent = summary.low_point?.date || '';
                 document.getElementById('highPoint').textContent = fmt(summary.high_point?.balance);
                 document.getElementById('highPointDate').textContent = summary.high_point?.date || '';
-                document.getElementById('monthlyProfit').textContent = fmt(summary.monthly_profit);
+                document.getElementById('monthlyProfitCalc').textContent = fmt(summary.monthly_profit_calculated || summary.monthly_profit || 0);
+                document.getElementById('monthlyProfitAdj').textContent = fmt(summary.monthly_profit_adjusted || summary.monthly_profit || 0);
                 
                 const status = summary.status || 'HEALTHY';
                 const badge = document.getElementById('statusBadge');
