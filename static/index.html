@@ -2847,16 +2847,13 @@
             const delayUnit = document.getElementById('corrDelayUnit').value;
             
             try {
-                await api('/correlations', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        source_group_id: currentCategoryId,
-                        target_group_id: targetGroupId,
-                        direction: currentCorrDirection,
-                        percent: percent,
-                        delay_value: delayValue,
-                        delay_unit: delayUnit
-                    })
+                await api('/correlations', 'POST', {
+                    source_group_id: currentCategoryId,
+                    target_group_id: targetGroupId,
+                    direction: currentCorrDirection,
+                    percent: percent,
+                    delay_value: delayValue,
+                    delay_unit: delayUnit
                 });
                 
                 closeCorrelationModal();
@@ -2870,7 +2867,7 @@
             if (!confirm('Delete this correlation?')) return;
             
             try {
-                await api(`/correlations/${correlationId}`, { method: 'DELETE' });
+                await api(`/correlations/${correlationId}`, 'DELETE');
                 await loadCorrelations();
             } catch (err) {
                 alert('Error deleting: ' + err.message);
