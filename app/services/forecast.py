@@ -296,9 +296,13 @@ def compute_forecast(db: Session, user_id: int, horizon_days: int = 90,
         # First check TransactionGroup columns for user adjustments
         for group in groups:
             if group.adjusted_trend_percent is not None:
-                # Use absolute value of the percentage - direction field controls sign
+                # Use absolute value of the percentage
                 change_pct = abs(float(group.adjusted_trend_percent))
-                direction = group.trend or "flat"
+                # Get direction from adjusted_trend_direction, fall back to sign of percent
+                direction = group.adjusted_trend_direction
+                if direction is None:
+                    # Infer direction from the sign of the percentage
+                    direction = "down" if group.adjusted_trend_percent < 0 else "up"
                 
                 # Map trend values to forecast direction
                 # "up" = continue increasing at this rate
