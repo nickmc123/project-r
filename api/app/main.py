@@ -996,6 +996,107 @@ def get_group_trend(group_id: int, user: User = Depends(get_current_user), db: S
     """Analyze trend for a group"""
     return analyze_trends(db, user.id, group_id)
 
+@app.get("/groups/{group_id}/trend-detail")
+def get_group_trend_detail(
+    group_id: int, 
+    period: str = Query("weekly", regex="^(weekly|monthly)$"),
+    user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Get transaction totals by week or month for trend analysis"""
+    from datetime import timedelta
+    from collections import defaultdict
+    
+    # Get the group
+    group = db.query(TransactionGroup).filter(
+        TransactionGroup.id == group_id,
+        TransactionGroup.user_id == user.id
+    ).first()
+    if not group:
+        raise HTTPException(404, "Group not found")
+    
+    # Get transactions for this group
+    txns = db.query(Transaction).filter(
+        Transaction.user_id == user.id,
+        Transaction.group_id == group_id
+    ).order_by(Transaction.date_posted.desc()).all()
+    
+    if not txns:
+        return {
+            "group": {
+                "id": group.id,
+                "name": group.name,
+                "trend": group.trend,
+                "calculated_trend_percent": float(group.calculated_trend_percent) if group.calculated_trend_percent else 0,
+                "adjusted_trend_percent": float(group.adjusted_trend_percent) if group.adjusted_trend_percent else None
+            },
+            "periods": [],
+            "period_type": period
+        }
+    
+    # Group by week or month
+    period_totals = defaultdict(lambda: {"total": 0, "count": 0, "transactions": []})
+    
+    for t in txns:
+        # Parse the date string (YYYY-MM-DD format)
+        if not t.date_posted:
+            continue  # Skip transactions without dates
+        try:
+            txn_date = datetime.strptime(t.date_posted, "%Y-%m-%d").date()
+        except:
+            continue
+        if period == "weekly":
+            # Start of week (Monday)
+            start_of_week = txn_date - timedelta(days=txn_date.weekday())
+            period_key = start_of_week.strftime("%Y-%m-%d")
+        else:  # monthly
+            period_key = txn_date.strftime("%Y-%m")
+        
+        period_totals[period_key]["total"] += float(t.amount_signed)
+        period_totals[period_key]["count"] += 1
+        period_totals[period_key]["transactions"].append({
+            "id": t.id,
+            "date": t.date_posted,
+            "description": t.description,
+            "amount": float(t.amount_signed)
+        })
+    
+    # Convert to list sorted by period
+    periods = []
+    for period_key in sorted(period_totals.keys(), reverse=True):
+        data = period_totals[period_key]
+        periods.append({
+            "period": period_key,
+            "total": round(data["total"], 2),
+            "count": data["count"],
+            "transactions": data["transactions"]
+        })
+    
+    # Calculate trend from data
+    calc_trend_pct = 0
+    if len(periods) >= 2:
+        # Compare most recent to previous
+        recent_avg = periods[0]["total"]
+        older_avg = periods[1]["total"]
+        if older_avg != 0:
+            calc_trend_pct = round((recent_avg - older_avg) / abs(older_avg) * 100, 1)
+    
+    return {
+        "group": {
+            "id": group.id,
+            "name": group.name,
+            "trend": group.trend or "flat",
+            "calculated_trend_percent": calc_trend_pct,
+            "adjusted_trend_percent": float(group.adjusted_trend_percent) if group.adjusted_trend_percent else None,
+            "trend_period": group.trend_period or "month",
+            "trend_duration_days": group.trend_duration_days,
+            "trend_then": group.trend_then,
+            "trend_then_percent": float(group.trend_then_percent) if group.trend_then_percent else None
+        },
+        "periods": periods,
+        "period_type": period
+    }
+
 class UpdateGroupRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
@@ -1044,6 +1145,68 @@ def update_group(group_id: int, req: UpdateGroupRequest, user: User = Depends(ge
     
     db.commit()
     return {"ok": True, "id": group.id}
+
+@app.post("/groups/{group_id}/calculate-trend")
+def calculate_group_trend(group_id: int, lookback_days: int = 30, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Calculate trend for a group based on custom lookback period"""
+    group = db.query(TransactionGroup).filter(
+        TransactionGroup.id == group_id,
+        TransactionGroup.user_id == user.id
+    ).first()
+    
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Get transactions within the lookback period
+    from datetime import datetime, timedelta
+    cutoff_date = datetime.now().date() - timedelta(days=lookback_days)
+    
+    transactions = db.query(Transaction).filter(
+        Transaction.group_id == group_id,
+        Transaction.user_id == user.id,
+        Transaction.date >= cutoff_date
+    ).order_by(Transaction.date).all()
+    
+    if len(transactions) < 2:
+        # Not enough data to calculate trend
+        return {"calculated_trend_percent": 0, "lookback_days": lookback_days, "transaction_count": len(transactions)}
+    
+    # Split into two halves and compare
+    midpoint = len(transactions) // 2
+    first_half = transactions[:midpoint]
+    second_half = transactions[midpoint:]
+    
+    # Sum amounts for each half (inflows positive, outflows negative)
+    first_sum = sum(t.amount for t in first_half) if first_half else 0
+    second_sum = sum(t.amount for t in second_half) if second_half else 0
+    
+    # Calculate percentage change
+    if first_sum == 0:
+        trend_pct = 0
+    else:
+        trend_pct = ((second_sum - first_sum) / abs(first_sum)) * 100
+    
+    # Normalize to per-month rate (30 days)
+    half_period_days = lookback_days / 2
+    if half_period_days > 0:
+        trend_per_month = trend_pct * (30 / half_period_days)
+    else:
+        trend_per_month = 0
+    
+    # Round to 1 decimal
+    trend_per_month = round(trend_per_month, 1)
+    
+    # Optionally update the calculated_trend_percent in the database
+    group.calculated_trend_percent = trend_per_month
+    db.commit()
+    
+    return {
+        "calculated_trend_percent": trend_per_month,
+        "lookback_days": lookback_days,
+        "transaction_count": len(transactions),
+        "first_half_sum": first_sum,
+        "second_half_sum": second_sum
+    }
 
 class BatchMoveRequest(BaseModel):
     transaction_ids: List[int]
@@ -1222,7 +1385,7 @@ def get_group_trend_detail(group_id: int, period: str = "week", user: User = Dep
     txns = db.query(Transaction).filter(
         Transaction.group_id == group_id,
         Transaction.user_id == user.id
-    ).order_by(Transaction.date.desc()).all()
+    ).order_by(Transaction.date_posted.desc()).all()
     
     if not txns:
         return {
@@ -1248,22 +1411,26 @@ def get_group_trend_detail(group_id: int, period: str = "week", user: User = Dep
     periods = defaultdict(lambda: {"total": 0, "count": 0, "transactions": []})
     
     for t in txns:
+        if not t.date_posted:
+            continue
+        try:
+            d = datetime.strptime(t.date_posted, "%Y-%m-%d").date()
+        except:
+            continue
         if period == "week":
             # Get ISO week
-            d = t.date if isinstance(t.date, date) else datetime.strptime(t.date, "%Y-%m-%d").date()
             year, week, _ = d.isocalendar()
             key = f"{year}-W{week:02d}"
         else:  # month
-            d = t.date if isinstance(t.date, date) else datetime.strptime(t.date, "%Y-%m-%d").date()
             key = f"{d.year}-{d.month:02d}"
         
-        periods[key]["total"] += float(t.amount)
+        periods[key]["total"] += float(t.amount_signed)
         periods[key]["count"] += 1
         periods[key]["transactions"].append({
             "id": t.id,
-            "date": str(t.date),
+            "date": t.date_posted,
             "description": t.description,
-            "amount": float(t.amount)
+            "amount": float(t.amount_signed)
         })
     
     # Sort periods
@@ -1390,6 +1557,8 @@ def create_schedule_rule(req: ScheduleRuleRequest, user: User = Depends(get_curr
 @app.get("/forecast")
 def get_forecast(
     horizon_days: int = Query(90, ge=1, le=365),
+    period: str = Query("weekly", regex="^(daily|weekly|monthly)$"),
+    count: int = Query(None, ge=1, le=365),
     starting_balance: Optional[float] = None,
     apply_sentiments: bool = True,
     user: User = Depends(get_current_user),
@@ -1400,12 +1569,20 @@ def get_forecast(
     if user.plan != "pro" and horizon_days > 90:
         horizon_days = 90
     
-    return compute_forecast(
+    result = compute_forecast(
         db, user.id,
         horizon_days=horizon_days,
         starting_balance=starting_balance,
         apply_sentiments=apply_sentiments
     )
+    
+    # Limit the series by count if specified
+    if count and "baseline_series" in result:
+        result["baseline_series"] = result["baseline_series"][:count]
+    if count and "adjusted_series" in result:
+        result["adjusted_series"] = result["adjusted_series"][:count]
+    
+    return result
 
 @app.get("/summary")
 def get_summary(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
