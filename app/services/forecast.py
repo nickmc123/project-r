@@ -460,7 +460,11 @@ def compute_forecast(db: Session, user_id: int, horizon_days: int = 90,
     day_30_balance = baseline_daily.get(thirty_days, {}).get("balance", starting_balance)
     monthly_profit = day_30_balance - starting_balance
     
-    return {
+    # Calculate adjusted 30-day profit
+    day_30_balance_adj = adjusted_daily.get(thirty_days, {}).get("balance", starting_balance)
+    monthly_profit_adj = day_30_balance_adj - starting_balance
+    
+    result = {
         "starting_balance": round(starting_balance, 2),
         "horizon_days": horizon_days,
         "baseline_series": baseline_series,
@@ -480,3 +484,20 @@ def compute_forecast(db: Session, user_id: int, horizon_days: int = 90,
             }
         }
     }
+    
+    # Add adjusted summary if sentiments are applied
+    if apply_sentiments and sentiments:
+        result["summary"]["adjusted"] = {
+            "high_point": {
+                "date": adjusted_high["date"].isoformat(),
+                "balance": round(adjusted_high["balance"], 2)
+            },
+            "low_point": {
+                "date": adjusted_low["date"].isoformat(),
+                "balance": round(adjusted_low["balance"], 2)
+            },
+            "ending_balance": round(list(adjusted_daily.values())[-1]["balance"], 2),
+            "monthly_profit": round(monthly_profit_adj, 2)
+        }
+    
+    return result
