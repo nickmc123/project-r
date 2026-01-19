@@ -296,13 +296,14 @@ def compute_forecast(db: Session, user_id: int, horizon_days: int = 90,
         # First check TransactionGroup columns for user adjustments
         for group in groups:
             if group.adjusted_trend_percent is not None:
-                # Determine direction from the trend field and adjusted percentage
-                change_pct = float(group.adjusted_trend_percent)
+                # Use absolute value of the percentage - direction field controls sign
+                change_pct = abs(float(group.adjusted_trend_percent))
                 direction = group.trend or "flat"
                 
                 # Map trend values to forecast direction
-                # "up" with positive pct = continue growing
-                # "down" with positive pct = decline rate
+                # "up" = continue increasing at this rate
+                # "down" = reverse/decline at this rate
+                # "flat" = no change from baseline
                 if direction == "up":
                     sentiments[group.id] = {
                         "direction": "continue",
@@ -313,7 +314,7 @@ def compute_forecast(db: Session, user_id: int, horizon_days: int = 90,
                         "direction": "reverse",
                         "change_pct": change_pct
                     }
-                # "flat" = no change from baseline
+                # "flat" = no sentiment adjustment (baseline projection used)
         
         # Also check TrendSentiment table as fallback
         sent_rows = db.query(TrendSentiment).filter(
@@ -323,7 +324,7 @@ def compute_forecast(db: Session, user_id: int, horizon_days: int = 90,
             if s.group_id not in sentiments:  # Don't override group settings
                 sentiments[s.group_id] = {
                     "direction": s.expected_direction,
-                    "change_pct": float(s.expected_change_pct)
+                    "change_pct": abs(float(s.expected_change_pct))
                 }
     
     # Build daily projection
