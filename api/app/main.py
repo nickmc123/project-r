@@ -858,8 +858,8 @@ async def confirm_import(
         # Check for duplicate
         existing = db.query(Transaction).filter(
             Transaction.user_id == user.id,
-            Transaction.date == txn_date,
-            Transaction.amount == signed_amount,
+            Transaction.date_posted == txn_date.strftime("%Y-%m-%d") if hasattr(txn_date, 'strftime') else str(txn_date),
+            Transaction.amount_signed == signed_amount,
             Transaction.description == txn.get("description", "")
         ).first()
         
@@ -870,12 +870,10 @@ async def confirm_import(
         # Save new transaction
         new_txn = Transaction(
             user_id=user.id,
-            date=txn_date,
-            amount=signed_amount,
+            date_posted=txn_date.strftime("%Y-%m-%d") if hasattr(txn_date, 'strftime') else str(txn_date),
+            amount_signed=signed_amount,
             description=txn.get("description", ""),
-            balance=txn.get("balance"),
-            account=txn.get("account"),
-            category=txn.get("category")
+            balance=txn.get("balance")
         )
         db.add(new_txn)
         saved += 1
@@ -997,6 +995,77 @@ def delete_group(group_id: int, user: User = Depends(get_current_user), db: Sess
 def get_group_trend(group_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Analyze trend for a group"""
     return analyze_trends(db, user.id, group_id)
+
+class UpdateGroupRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    stream_type: Optional[str] = None
+    frequency: Optional[str] = None
+    trend: Optional[str] = None  # 'up', 'down', 'flat'
+
+@app.patch("/groups/{group_id}")
+def update_group(group_id: int, req: UpdateGroupRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Update group properties"""
+    group = db.query(TransactionGroup).filter(
+        TransactionGroup.id == group_id,
+        TransactionGroup.user_id == user.id
+    ).first()
+    
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    if req.name is not None:
+        group.name = req.name
+    if req.description is not None:
+        group.description = req.description
+    if req.stream_type is not None:
+        group.stream_type = req.stream_type
+    if req.frequency is not None:
+        group.frequency = req.frequency
+    if req.trend is not None:
+        group.trend = req.trend
+    
+    db.commit()
+    return {"ok": True, "id": group.id}
+
+class BatchMoveRequest(BaseModel):
+    transaction_ids: List[int]
+    group_id: Optional[int] = None
+
+@app.post("/transactions/batch-move")
+def batch_move_transactions(req: BatchMoveRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Move multiple transactions to a category"""
+    # Verify group belongs to user if specified
+    if req.group_id is not None:
+        group = db.query(TransactionGroup).filter(
+            TransactionGroup.id == req.group_id,
+            TransactionGroup.user_id == user.id
+        ).first()
+        if not group:
+            raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Update transactions
+    updated = db.query(Transaction).filter(
+        Transaction.id.in_(req.transaction_ids),
+        Transaction.user_id == user.id
+    ).update({Transaction.group_id: req.group_id}, synchronize_session=False)
+    
+    db.commit()
+    return {"ok": True, "updated": updated}
+
+class BatchDeleteRequest(BaseModel):
+    transaction_ids: List[int]
+
+@app.post("/transactions/batch-delete")
+def batch_delete_transactions(req: BatchDeleteRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Delete multiple transactions"""
+    deleted = db.query(Transaction).filter(
+        Transaction.id.in_(req.transaction_ids),
+        Transaction.user_id == user.id
+    ).delete(synchronize_session=False)
+    
+    db.commit()
+    return {"ok": True, "deleted": deleted}
 
 @app.post("/trends/sentiment")
 def set_trend_sentiment(req: TrendSentimentRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -1228,8 +1297,9 @@ async def ask_question_get(
         g["id"]: {
             "name": g["name"],
             "type": "credit" if g["stream_type"] == "inflow" else "debit",
-            "total": g["total"],
-            "net_total": g["net_total"],
+            "total": g.get("net_amount", 0),
+            "net_total": g.get("net_amount", 0),
+            "trend": g.get("trend", "flat"),
         }
         for g in groups
     }
@@ -1289,8 +1359,9 @@ async def ask_question_post(
         g["id"]: {
             "name": g["name"],
             "type": "credit" if g["stream_type"] == "inflow" else "debit",
-            "total": g["total"],
-            "net_total": g["net_total"],
+            "total": g.get("net_amount", 0),
+            "net_total": g.get("net_amount", 0),
+            "trend": g.get("trend", "flat"),
         }
         for g in groups
     }
