@@ -260,7 +260,13 @@ def get_groups_for_user(db: Session, user_id: int) -> List[Dict]:
             "allow_offsets": g.allow_offsets,
             "typical_day_of_month": g.typical_day_of_month,
             "typical_day_of_week": g.typical_day_of_week,
-            "trend": g.trend or "flat"
+            "trend": g.trend or "flat",
+            "calculated_trend_percent": float(g.calculated_trend_percent) if g.calculated_trend_percent else 0,
+            "adjusted_trend_percent": float(g.adjusted_trend_percent) if g.adjusted_trend_percent else None,
+            "trend_period": g.trend_period or "month",
+            "trend_duration_days": g.trend_duration_days,
+            "trend_then": g.trend_then,
+            "trend_then_percent": float(g.trend_then_percent) if g.trend_then_percent else None
         }
         for g in groups
     ]
