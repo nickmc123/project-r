@@ -32,37 +32,39 @@
             overflow-x: hidden;
         }
         
-        .screen { display: none; min-height: 100vh; padding: 20px; }
+        .screen { display: none; height: 100vh; padding: 20px; overflow: hidden; }
         .screen.active { display: flex; flex-direction: column; }
+        #auth.active { overflow: hidden; }
         
         /* Auth Screen */
         .auth-container {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 20px;
+            justify-content: flex-start;
+            height: 100vh;
+            padding: 40px 20px 20px;
+            overflow: hidden;
         }
         
         .logo-large {
-            font-size: 48px;
-            margin-bottom: 10px;
+            font-size: 40px;
+            margin-bottom: 6px;
         }
         
         .app-title {
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 700;
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
         
         .app-subtitle {
             color: var(--text-muted);
-            font-size: 14px;
-            margin-bottom: 40px;
+            font-size: 13px;
+            margin-bottom: 24px;
         }
         
         .auth-form {
@@ -71,27 +73,27 @@
         }
         
         .form-group {
-            margin-bottom: 16px;
+            margin-bottom: 12px;
         }
         
         .form-group label {
             display: block;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
             color: var(--text-muted);
         }
         
         .form-group input {
             width: 100%;
-            padding: 14px 16px;
+            padding: 12px 14px;
             border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 12px;
+            border-radius: 10px;
             background: var(--card-bg);
             color: var(--text);
-            font-size: 16px;
+            font-size: 15px;
         }
         
         .form-group input:focus {
@@ -127,9 +129,9 @@
         }
         
         .auth-toggle {
-            margin-top: 24px;
+            margin-top: 16px;
             color: var(--text-muted);
-            font-size: 14px;
+            font-size: 13px;
         }
         
         .auth-toggle a {
@@ -902,13 +904,13 @@
                 <a href="#" id="authToggle">Sign Up</a>
             </p>
             
-            <p class="auth-toggle" id="forgotPasswordLink" style="margin-top: 12px;">
+            <p class="auth-toggle" id="forgotPasswordLink" style="margin-top: 8px;">
                 <a href="#" onclick="showForgotPassword(); return false;">Forgot Password?</a>
             </p>
             
-            <div style="text-align: center; margin-top: 32px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.1);">
-                <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 12px;">Just want to explore?</p>
-                <a href="#" onclick="demoLogin(); return false;" style="color: #10B981; font-size: 16px; font-weight: 600; text-decoration: none;">
+            <div style="text-align: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 8px;">Just want to explore?</p>
+                <a href="#" onclick="demoLogin(); return false;" style="color: #10B981; font-size: 15px; font-weight: 600; text-decoration: none;">
                     ✨ Try Demo Account
                 </a>
             </div>
