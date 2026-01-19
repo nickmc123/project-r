@@ -103,10 +103,47 @@ class TransactionGroup(Base):
     # User-set trend expectation (up/down/flat)
     trend: Mapped[Optional[str]] = mapped_column(String(16), nullable=True, default="flat")
     
+    # Calculated trend from data
+    calculated_trend_percent: Mapped[float] = mapped_column(Numeric(8,2), default=0)  # e.g., -10.5 means down 10.5%
+    
+    # User trend adjustments
+    adjusted_trend_percent: Mapped[Optional[float]] = mapped_column(Numeric(8,2), nullable=True)  # Override calculated
+    trend_period: Mapped[str] = mapped_column(String(16), default="month")  # day|week|month
+    trend_duration_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # How long trend applies (null = indefinite)
+    trend_then: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)  # flat|up|down after duration
+    trend_then_percent: Mapped[Optional[float]] = mapped_column(Numeric(8,2), nullable=True)  # Rate after duration
+    
     created_at: Mapped[str] = mapped_column(DateTime, server_default=func.now())
     
     __table_args__ = (
         UniqueConstraint("user_id", "name", name="uq_group_name"),
+    )
+
+
+class GroupCorrelation(Base):
+    """Correlations between groups - when one changes, another follows"""
+    __tablename__ = "group_correlations"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, index=True)
+    
+    # Source group (the trigger)
+    source_group_id: Mapped[int] = mapped_column(Integer, index=True)
+    
+    # Target group (the effect)
+    target_group_id: Mapped[int] = mapped_column(Integer, index=True)
+    
+    # Correlation details
+    direction: Mapped[str] = mapped_column(String(8))  # same|opposite (same=both up/down, opposite=inverse)
+    percent: Mapped[float] = mapped_column(Numeric(8,2))  # e.g., 50 means 50% of source change
+    
+    # Delay before effect applies
+    delay_value: Mapped[int] = mapped_column(Integer, default=0)
+    delay_unit: Mapped[str] = mapped_column(String(16), default="days")  # days|weeks|months
+    
+    created_at: Mapped[str] = mapped_column(DateTime, server_default=func.now())
+    
+    __table_args__ = (
+        UniqueConstraint("source_group_id", "target_group_id", name="uq_correlation"),
     )
 
 class ScheduleRule(Base):
