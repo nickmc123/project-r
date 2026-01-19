@@ -416,6 +416,47 @@
             margin-right: 8px;
         }
         
+        /* Projection Modal Buttons */
+        .proj-btn {
+            flex: 1;
+            padding: 12px 8px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .proj-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
+        .proj-btn:active { transform: scale(0.95); }
+        
+        /* Toggle Tabs */
+        .toggle-tabs {
+            display: flex;
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 4px;
+            border: 1px solid var(--border);
+        }
+        .toggle-tab {
+            flex: 1;
+            padding: 10px 16px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .toggle-tab.active {
+            background: var(--primary);
+            color: white;
+        }
+        
         .forecast-title {
             font-size: 20px;
             font-weight: 700;
@@ -1361,13 +1402,9 @@
         </div>
         
         <div class="action-grid">
-            <div class="action-btn" onclick="showForecast(15)">
+            <div class="action-btn" onclick="showProjectionModal()">
                 <div class="action-icon">📈</div>
-                <div class="action-label">15-Day Forecast</div>
-            </div>
-            <div class="action-btn" onclick="showForecast(30)">
-                <div class="action-icon">📊</div>
-                <div class="action-label">30-Day Forecast</div>
+                <div class="action-label">Cash Projection</div>
             </div>
             <div class="action-btn" onclick="showGroups()">
                 <div class="action-icon">📋</div>
@@ -1384,6 +1421,42 @@
             <div class="action-btn" onclick="showChat()">
                 <div class="action-icon">💬</div>
                 <div class="action-label">Ask a Question</div>
+            </div>
+        </div>
+        
+        <!-- Projection Modal -->
+        <div id="projectionModal" class="modal" style="display:none;">
+            <div class="modal-content" style="max-width:350px;">
+                <div class="modal-header">
+                    <h3>Cash Projection</h3>
+                    <button class="modal-close" onclick="closeProjectionModal()">×</button>
+                </div>
+                <div style="padding:16px;">
+                    <div style="margin-bottom:16px;">
+                        <h4 style="color:var(--text-muted);font-size:12px;margin-bottom:10px;text-transform:uppercase;">Daily View</h4>
+                        <div style="display:flex;gap:8px;">
+                            <button class="proj-btn" onclick="showForecast('daily', 15)">15 Days</button>
+                            <button class="proj-btn" onclick="showForecast('daily', 30)">30 Days</button>
+                            <button class="proj-btn" onclick="showForecast('daily', 45)">45 Days</button>
+                        </div>
+                    </div>
+                    <div style="margin-bottom:16px;">
+                        <h4 style="color:var(--text-muted);font-size:12px;margin-bottom:10px;text-transform:uppercase;">Weekly View</h4>
+                        <div style="display:flex;gap:8px;">
+                            <button class="proj-btn" onclick="showForecast('weekly', 4)">4 Weeks</button>
+                            <button class="proj-btn" onclick="showForecast('weekly', 8)">8 Weeks</button>
+                            <button class="proj-btn" onclick="showForecast('weekly', 12)">12 Weeks</button>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 style="color:var(--text-muted);font-size:12px;margin-bottom:10px;text-transform:uppercase;">Monthly View</h4>
+                        <div style="display:flex;gap:8px;">
+                            <button class="proj-btn" onclick="showForecast('monthly', 6)">6 Months</button>
+                            <button class="proj-btn" onclick="showForecast('monthly', 9)">9 Months</button>
+                            <button class="proj-btn" onclick="showForecast('monthly', 12)">12 Months</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1449,6 +1522,14 @@
         <div class="forecast-header">
             <button class="back-btn" onclick="showDashboard()">←</button>
             <h2 class="forecast-title" id="forecastTitle">Forecast</h2>
+        </div>
+        
+        <!-- Toggle between Calculated and Adjusted -->
+        <div style="padding:0 16px 12px;">
+            <div class="toggle-tabs" id="forecastToggle">
+                <button class="toggle-tab active" data-view="calculated" onclick="toggleForecastView('calculated')">Calculated</button>
+                <button class="toggle-tab" data-view="adjusted" onclick="toggleForecastView('adjusted')">Adjusted</button>
+            </div>
         </div>
         
         <div class="forecast-list" id="forecastList"></div>
@@ -1567,7 +1648,22 @@
             </div>
             <div class="modal-body">
                 <p id="trendCategoryName" style="font-weight:600;margin-bottom:8px;"></p>
-                <p id="trendCalculated" style="font-size:13px;color:var(--text-muted);margin-bottom:16px;"></p>
+                <p id="trendCalculated" style="font-size:13px;color:var(--text-muted);margin-bottom:4px;"></p>
+                
+                <!-- Calculation Timeframe -->
+                <div class="form-group" style="margin-bottom:16px;padding:12px;background:var(--bg);border-radius:8px;border:1px dashed var(--border);">
+                    <label style="font-size:12px;font-weight:500;margin-bottom:8px;display:block;color:var(--text-muted);text-transform:uppercase;">Calculation Lookback</label>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:14px;">Use last</span>
+                        <input type="number" id="calcLookbackValue" style="width:60px;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:14px;text-align:center;" value="4" min="1" max="52">
+                        <select id="calcLookbackUnit" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                            <option value="weeks">weeks</option>
+                            <option value="months" selected>months</option>
+                        </select>
+                        <button onclick="recalculateTrend()" style="padding:8px 12px;background:var(--primary);color:white;border:none;border-radius:6px;font-size:13px;">↻</button>
+                    </div>
+                    <p id="recalcResult" style="font-size:12px;color:var(--success);margin-top:8px;display:none;"></p>
+                </div>
                 
                 <!-- Trend Direction -->
                 <div class="form-group" style="margin-bottom:16px;">
@@ -2467,44 +2563,126 @@
         };
         
         // Forecast
-        const showForecast = async (days) => {
+        let currentForecastData = null;
+        let currentForecastView = 'calculated';
+        let currentForecastType = 'weekly';
+        
+        const showProjectionModal = () => {
+            document.getElementById('projectionModal').style.display = 'flex';
+        };
+        
+        const closeProjectionModal = () => {
+            document.getElementById('projectionModal').style.display = 'none';
+        };
+        
+        const showForecast = async (type, count) => {
+            closeProjectionModal();
             showScreen('forecastView');
-            document.getElementById('forecastTitle').textContent = `${days}-Day Forecast`;
+            currentForecastType = type;
+            
+            // Set title based on type
+            const titles = {
+                daily: `${count}-Day Forecast`,
+                weekly: `${count}-Week Forecast`,
+                monthly: `${count}-Month Forecast`
+            };
+            document.getElementById('forecastTitle').textContent = titles[type];
             document.getElementById('forecastList').innerHTML = '<div class="spinner"></div>';
             
+            // Reset toggle to Calculated
+            currentForecastView = 'calculated';
+            document.querySelectorAll('#forecastToggle .toggle-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.view === 'calculated');
+            });
+            
+            // Convert to days for API
+            let horizonDays;
+            if (type === 'daily') horizonDays = count;
+            else if (type === 'weekly') horizonDays = count * 7;
+            else horizonDays = count * 30;
+            
             try {
-                const data = await api(`/forecast?horizon_days=${days}`);
+                const data = await api(`/forecast?horizon_days=${horizonDays}`);
                 
                 if (data.error) {
                     document.getElementById('forecastList').innerHTML = `<div class="message message-error">${data.error}</div>`;
                     return;
                 }
                 
-                const series = data.baseline_series || [];
-                
-                document.getElementById('forecastList').innerHTML = series.map(week => `
+                currentForecastData = data;
+                renderForecast();
+            } catch (err) {
+                document.getElementById('forecastList').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const toggleForecastView = (view) => {
+            currentForecastView = view;
+            document.querySelectorAll('#forecastToggle .toggle-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.view === view);
+            });
+            renderForecast();
+        };
+        
+        const renderForecast = () => {
+            if (!currentForecastData) return;
+            
+            const series = currentForecastView === 'adjusted' 
+                ? (currentForecastData.adjusted_series || currentForecastData.baseline_series || [])
+                : (currentForecastData.baseline_series || []);
+            
+            const periodLabel = currentForecastType === 'daily' ? 'day' : 
+                               currentForecastType === 'weekly' ? 'week' : 'month';
+            
+            if (currentForecastType === 'daily') {
+                // Daily view - show each day
+                document.getElementById('forecastList').innerHTML = series.map((item, idx) => {
+                    // For daily, we need to calculate per-day data from weekly aggregates
+                    // For now show weekly data with day labels
+                    return `
                     <div class="forecast-week">
-                        <div class="week-date">Week of ${week.week}</div>
+                        <div class="week-date">${item.week || item.date || `Day ${idx + 1}`}</div>
                         <div class="week-flows">
                             <div class="flow-item">
                                 <div class="flow-label">Inflow</div>
-                                <div class="flow-amount inflow">+${fmt(week.inflow)}</div>
+                                <div class="flow-amount inflow">+${fmt(item.inflow)}</div>
                             </div>
                             <div class="flow-item">
                                 <div class="flow-label">Outflow</div>
-                                <div class="flow-amount outflow">-${fmt(week.outflow)}</div>
+                                <div class="flow-amount outflow">-${fmt(item.outflow)}</div>
                             </div>
                         </div>
                         <div class="week-balance">
                             <div class="flow-label">End Balance</div>
-                            <div class="flow-amount" style="color:${week.balance_end >= 0 ? 'var(--success)' : 'var(--danger)'}">
-                                ${fmt(week.balance_end)}
+                            <div class="flow-amount" style="color:${item.balance_end >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                                ${fmt(item.balance_end)}
+                            </div>
+                        </div>
+                    </div>
+                `}).join('');
+            } else {
+                // Weekly/Monthly view
+                document.getElementById('forecastList').innerHTML = series.map(item => `
+                    <div class="forecast-week">
+                        <div class="week-date">${currentForecastType === 'weekly' ? 'Week of ' : ''}${item.week || item.month}</div>
+                        <div class="week-flows">
+                            <div class="flow-item">
+                                <div class="flow-label">Inflow</div>
+                                <div class="flow-amount inflow">+${fmt(item.inflow)}</div>
+                            </div>
+                            <div class="flow-item">
+                                <div class="flow-label">Outflow</div>
+                                <div class="flow-amount outflow">-${fmt(item.outflow)}</div>
+                            </div>
+                        </div>
+                        <div class="week-balance">
+                            <div class="flow-label">End Balance</div>
+                            <div class="flow-amount" style="color:${item.balance_end >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                                ${fmt(item.balance_end)}
                             </div>
                         </div>
                     </div>
                 `).join('');
-            } catch (err) {
-                document.getElementById('forecastList').innerHTML = `<div class="message message-error">${err.message}</div>`;
             }
         };
         
@@ -2740,6 +2918,43 @@
         
         const closeTrendModal = () => {
             document.getElementById('trendModal').classList.remove('active');
+        };
+        
+        const recalculateTrend = async () => {
+            const lookbackValue = parseInt(document.getElementById('calcLookbackValue').value) || 4;
+            const lookbackUnit = document.getElementById('calcLookbackUnit').value;
+            
+            // Convert to days
+            const lookbackDays = lookbackUnit === 'weeks' ? lookbackValue * 7 : lookbackValue * 30;
+            
+            try {
+                const result = await api(`/groups/${currentCategoryId}/calculate-trend?lookback_days=${lookbackDays}`, 'POST', {});
+                
+                if (result.calculated_trend_percent !== undefined) {
+                    // Update the displayed calculated trend
+                    const calcPct = result.calculated_trend_percent;
+                    const calcDir = calcPct > 2 ? 'up' : calcPct < -2 ? 'down' : 'flat';
+                    const calcIcon = calcDir === 'up' ? '📈' : calcDir === 'down' ? '📉' : '➡️';
+                    document.getElementById('trendCalculated').innerHTML = 
+                        `Calculated: ${calcIcon} <strong>${calcPct > 0 ? '+' : ''}${calcPct.toFixed(1)}%</strong>/month (last ${lookbackValue} ${lookbackUnit})`;
+                    
+                    document.getElementById('recalcResult').textContent = `✓ Recalculated: ${calcPct.toFixed(1)}%/month`;
+                    document.getElementById('recalcResult').style.display = 'block';
+                    
+                    // Auto-fill the adjustment fields with the new calculated value
+                    const absPct = Math.abs(calcPct);
+                    document.getElementById('trendPercent').value = absPct.toFixed(1);
+                    selectTrendDirection(calcDir);
+                    
+                    setTimeout(() => {
+                        document.getElementById('recalcResult').style.display = 'none';
+                    }, 3000);
+                }
+            } catch (err) {
+                document.getElementById('recalcResult').textContent = `Error: ${err.message}`;
+                document.getElementById('recalcResult').style.color = 'var(--danger)';
+                document.getElementById('recalcResult').style.display = 'block';
+            }
         };
         
         const saveTrendAdjustment = async () => {
