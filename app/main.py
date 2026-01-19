@@ -220,41 +220,276 @@ def get_me(user: User = Depends(get_current_user)):
     }
 
 # Onboarding
+# Business type keywords and their associated categories
+BUSINESS_TYPE_KEYWORDS = {
+    "travel": {
+        "keywords": ["travel", "vacation", "resort", "timeshare", "hotel", "booking", "destination", "tour", "cruise", "flight", "trip"],
+        "revenues": ["Package Sales", "Commission Revenue", "Booking Fees", "Referral Income", "Membership Fees"],
+        "expenses": ["Marketing & Advertising", "Commissions Paid", "Payment Processing Fees", "Travel Agent Fees", "Chargebacks & Refunds", "Software & Subscriptions"],
+    },
+    "restaurant": {
+        "keywords": ["restaurant", "food", "dining", "menu", "cuisine", "chef", "catering", "bistro", "cafe", "pizza", "delivery"],
+        "revenues": ["Food Sales", "Beverage Sales", "Catering Revenue", "Delivery Fees", "Tips"],
+        "expenses": ["Food Costs (COGS)", "Labor & Wages", "Rent", "Utilities", "Kitchen Equipment", "Supplies", "Delivery Costs"],
+    },
+    "retail": {
+        "keywords": ["shop", "store", "buy", "product", "merchandise", "retail", "ecommerce", "cart", "shipping", "order"],
+        "revenues": ["Product Sales", "Shipping Revenue", "Gift Cards", "Wholesale Revenue"],
+        "expenses": ["Cost of Goods Sold", "Shipping & Fulfillment", "Inventory", "Payment Processing", "Marketing", "Rent", "Packaging"],
+    },
+    "saas": {
+        "keywords": ["software", "platform", "app", "subscription", "saas", "cloud", "api", "dashboard", "enterprise", "solution"],
+        "revenues": ["Subscription Revenue", "Annual Contracts", "Professional Services", "API Usage Fees", "Onboarding Fees"],
+        "expenses": ["Hosting & Infrastructure", "Engineering Salaries", "Customer Support", "Marketing", "Software Licenses", "Sales Commissions"],
+    },
+    "healthcare": {
+        "keywords": ["health", "medical", "doctor", "clinic", "patient", "care", "therapy", "dental", "wellness", "treatment"],
+        "revenues": ["Patient Services", "Insurance Reimbursements", "Cash Pay Services", "Lab Fees", "Consultation Fees"],
+        "expenses": ["Staff Salaries", "Medical Supplies", "Insurance", "Rent", "Equipment Leases", "Billing Services", "Compliance Costs"],
+    },
+    "construction": {
+        "keywords": ["construction", "build", "contractor", "remodel", "home", "project", "renovation", "plumbing", "electrical", "roofing"],
+        "revenues": ["Contract Revenue", "Change Orders", "Service Calls", "Material Markup"],
+        "expenses": ["Labor Costs", "Materials & Supplies", "Equipment Rental", "Subcontractors", "Insurance", "Permits & Licenses", "Vehicle Costs"],
+    },
+    "professional_services": {
+        "keywords": ["consulting", "legal", "accounting", "law", "attorney", "cpa", "advisory", "firm", "counsel", "tax"],
+        "revenues": ["Billable Hours", "Retainer Fees", "Project Fees", "Consulting Revenue"],
+        "expenses": ["Staff Salaries", "Professional Insurance", "Office Rent", "Marketing", "Professional Memberships", "Software & Tools"],
+    },
+    "fitness": {
+        "keywords": ["gym", "fitness", "workout", "training", "yoga", "pilates", "crossfit", "personal trainer", "membership"],
+        "revenues": ["Membership Dues", "Personal Training", "Class Fees", "Merchandise Sales", "Supplements"],
+        "expenses": ["Rent", "Equipment", "Trainer Wages", "Utilities", "Insurance", "Marketing", "Cleaning & Maintenance"],
+    },
+    "real_estate": {
+        "keywords": ["real estate", "property", "homes", "realtor", "broker", "listing", "mortgage", "rental", "apartment"],
+        "revenues": ["Commission Income", "Property Management Fees", "Rental Income", "Referral Fees"],
+        "expenses": ["Marketing & Advertising", "MLS Fees", "Office Rent", "Agent Splits", "Insurance", "Vehicle Costs", "Staging Costs"],
+    },
+    "manufacturing": {
+        "keywords": ["manufacturing", "factory", "production", "assembly", "industrial", "machinery", "warehouse", "supply chain"],
+        "revenues": ["Product Sales", "Contract Manufacturing", "Custom Orders", "Scrap Sales"],
+        "expenses": ["Raw Materials", "Direct Labor", "Equipment Maintenance", "Utilities", "Shipping & Logistics", "Quality Control", "Factory Rent"],
+    },
+}
+
+# Default categories for unknown business types
+DEFAULT_CATEGORIES = {
+    "revenues": ["Sales Revenue", "Service Revenue", "Other Income", "Interest Income"],
+    "expenses": ["Payroll", "Rent", "Utilities", "Insurance", "Marketing", "Office Supplies", "Professional Services", "Software & Subscriptions"],
+}
+
+def detect_business_type(text: str) -> dict:
+    """Detect business type from website text and return suggested categories"""
+    text_lower = text.lower()
+    
+    best_match = None
+    best_score = 0
+    
+    for biz_type, config in BUSINESS_TYPE_KEYWORDS.items():
+        score = sum(1 for kw in config["keywords"] if kw in text_lower)
+        if score > best_score:
+            best_score = score
+            best_match = biz_type
+    
+    if best_match and best_score >= 2:  # Need at least 2 keyword matches
+        config = BUSINESS_TYPE_KEYWORDS[best_match]
+        return {
+            "business_type": best_match.replace("_", " ").title(),
+            "confidence": min(best_score * 15, 95),  # Cap at 95%
+            "suggested_revenues": config["revenues"],
+            "suggested_expenses": config["expenses"],
+        }
+    
+    return {
+        "business_type": "General Business",
+        "confidence": 30,
+        "suggested_revenues": DEFAULT_CATEGORIES["revenues"],
+        "suggested_expenses": DEFAULT_CATEGORIES["expenses"],
+    }
+
+async def fetch_branding_from_website(website: str) -> dict:
+    """Fetch logo, colors, and business info from a website by scraping HTML"""
+    import re
+    result = {
+        "logo_url": None, 
+        "primary_color": None,
+        "business_type": None,
+        "business_description": None,
+        "suggested_revenues": [],
+        "suggested_expenses": [],
+    }
+    
+    # Clean up website URL
+    website = website.strip().lower()
+    if website.startswith("http://"):
+        website = website[7:]
+    if website.startswith("https://"):
+        website = website[8:]
+    if website.startswith("www."):
+        website = website[4:]
+    website = website.rstrip("/")
+    
+    base_url = f"https://{website}"
+    
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=10) as client:
+            # Fetch the homepage HTML
+            r = await client.get(base_url, headers={"User-Agent": "Mozilla/5.0 (compatible; CashFlowBot/1.0)"})
+            if r.status_code != 200:
+                return result
+            
+            html = r.text
+            
+            # Extract text content for business analysis
+            # Remove scripts and styles
+            text_html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+            text_html = re.sub(r'<style[^>]*>.*?</style>', '', text_html, flags=re.DOTALL | re.IGNORECASE)
+            # Extract text from remaining HTML
+            text_content = re.sub(r'<[^>]+>', ' ', text_html)
+            text_content = re.sub(r'\s+', ' ', text_content).strip()
+            
+            # Get page title and meta description
+            title_match = re.search(r'<title[^>]*>([^<]+)</title>', html, re.IGNORECASE)
+            title = title_match.group(1).strip() if title_match else ""
+            
+            desc_match = re.search(r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)["\']', html, re.IGNORECASE)
+            if not desc_match:
+                desc_match = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']description["\']', html, re.IGNORECASE)
+            description = desc_match.group(1).strip() if desc_match else ""
+            
+            # OG description as fallback
+            if not description:
+                og_desc = re.search(r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\']([^"\']+)["\']', html, re.IGNORECASE)
+                if og_desc:
+                    description = og_desc.group(1).strip()
+            
+            # Combine text for analysis
+            analysis_text = f"{title} {description} {text_content[:3000]}"
+            
+            # Detect business type and get suggestions
+            biz_info = detect_business_type(analysis_text)
+            result["business_type"] = biz_info["business_type"]
+            result["business_confidence"] = biz_info["confidence"]
+            result["suggested_revenues"] = biz_info["suggested_revenues"]
+            result["suggested_expenses"] = biz_info["suggested_expenses"]
+            result["business_description"] = description[:200] if description else title[:100] if title else None
+            
+            # Look for logo in various places (priority order)
+            logo_patterns = [
+                # Apple touch icon (high quality)
+                r'<link[^>]+rel=["\']apple-touch-icon["\'][^>]+href=["\']([^"\']+)["\']',
+                r'<link[^>]+href=["\']([^"\']+)["\'][^>]+rel=["\']apple-touch-icon["\']',
+                # OG image (often a good logo)
+                r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
+                r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
+                # Large favicon
+                r'<link[^>]+rel=["\']icon["\'][^>]+sizes=["\'](?:192|180|152|144|128|120|114|96|72)[^"\']*["\'][^>]+href=["\']([^"\']+)["\']',
+                # Any icon link
+                r'<link[^>]+rel=["\'](?:shortcut )?icon["\'][^>]+href=["\']([^"\']+)["\']',
+                r'<link[^>]+href=["\']([^"\']+)["\'][^>]+rel=["\'](?:shortcut )?icon["\']',
+                # Logo in img tags
+                r'<img[^>]+(?:class|id)=["\'][^"\']*logo[^"\']*["\'][^>]+src=["\']([^"\']+)["\']',
+                r'<img[^>]+src=["\']([^"\']+)["\'][^>]+(?:class|id)=["\'][^"\']*logo[^"\']*["\']',
+            ]
+            
+            for pattern in logo_patterns:
+                match = re.search(pattern, html, re.IGNORECASE)
+                if match:
+                    logo_url = match.group(1)
+                    # Make absolute URL
+                    if logo_url.startswith("//"):
+                        logo_url = "https:" + logo_url
+                    elif logo_url.startswith("/"):
+                        logo_url = base_url + logo_url
+                    elif not logo_url.startswith("http"):
+                        logo_url = base_url + "/" + logo_url
+                    result["logo_url"] = logo_url
+                    break
+            
+            # If no logo found, try common paths
+            if not result["logo_url"]:
+                for path in ["/apple-touch-icon.png", "/favicon-192x192.png", "/logo.png", "/favicon.ico"]:
+                    try:
+                        r2 = await client.head(base_url + path)
+                        if r2.status_code == 200:
+                            result["logo_url"] = base_url + path
+                            break
+                    except:
+                        continue
+            
+            # Look for theme color
+            theme_match = re.search(r'<meta[^>]+name=["\']theme-color["\'][^>]+content=["\']([^"\']+)["\']', html, re.IGNORECASE)
+            if not theme_match:
+                theme_match = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']theme-color["\']', html, re.IGNORECASE)
+            if theme_match:
+                result["primary_color"] = theme_match.group(1)
+            
+    except Exception as e:
+        print(f"Error fetching branding: {e}")
+    
+    return result
+
 @app.post("/onboarding/company")
 async def set_company_info(req: CompanyInfoRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Step 1: Set company info, optionally fetch logo/colors from website"""
     user.company_name = req.company_name
     
+    fetched_branding = {}
     if req.company_website:
         user.company_website = req.company_website
         
         # Try to fetch branding from website
-        if not req.logo_url:
-            try:
-                async with httpx.AsyncClient() as client:
-                    # Try common favicon locations
-                    for path in ["/favicon.ico", "/apple-touch-icon.png", "/logo.png"]:
-                        try:
-                            r = await client.head(f"https://{req.company_website}{path}", timeout=5)
-                            if r.status_code == 200:
-                                user.logo_url = f"https://{req.company_website}{path}"
-                                break
-                        except:
-                            continue
-            except:
-                pass
+        if not req.logo_url or not req.primary_color:
+            fetched_branding = await fetch_branding_from_website(req.company_website)
     
+    # Apply colors - user provided takes priority
     if req.primary_color:
         user.primary_color = req.primary_color
+    elif fetched_branding.get("primary_color"):
+        user.primary_color = fetched_branding["primary_color"]
+        
     if req.secondary_color:
         user.secondary_color = req.secondary_color
+    
+    # Apply logo - user provided takes priority
     if req.logo_url:
         user.logo_url = req.logo_url
+    elif fetched_branding.get("logo_url"):
+        user.logo_url = fetched_branding["logo_url"]
     
     user.onboarding_step = max(user.onboarding_step, 1)
     db.commit()
     
-    return {"ok": True, "step": 1}
+    return {
+        "ok": True, 
+        "step": 1,
+        "fetched_logo": fetched_branding.get("logo_url"),
+        "fetched_color": fetched_branding.get("primary_color"),
+        "applied_logo": user.logo_url,
+        "applied_color": user.primary_color,
+        "business_type": fetched_branding.get("business_type"),
+        "business_confidence": fetched_branding.get("business_confidence"),
+        "business_description": fetched_branding.get("business_description"),
+        "suggested_revenues": fetched_branding.get("suggested_revenues", []),
+        "suggested_expenses": fetched_branding.get("suggested_expenses", []),
+    }
+
+@app.get("/fetch-branding")
+async def preview_branding(website: str = Query(..., description="Website to fetch branding from")):
+    """Preview logo, colors, and business info from a website without saving"""
+    branding = await fetch_branding_from_website(website)
+    return {
+        "website": website,
+        "logo_url": branding.get("logo_url"),
+        "primary_color": branding.get("primary_color"),
+        "business_type": branding.get("business_type"),
+        "business_confidence": branding.get("business_confidence"),
+        "business_description": branding.get("business_description"),
+        "suggested_revenues": branding.get("suggested_revenues", []),
+        "suggested_expenses": branding.get("suggested_expenses", []),
+    }
 
 @app.post("/onboarding/upload-data")
 async def upload_bank_data(file: UploadFile = File(...), user: User = Depends(get_current_user), db: Session = Depends(get_db)):
