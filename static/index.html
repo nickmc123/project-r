@@ -2075,6 +2075,27 @@
             loadDashboard();
         };
         
+        // Balance Update
+        const showBalanceUpdate = () => {
+            const currentBal = document.getElementById('currentBalance').textContent.replace(/[$,]/g, '');
+            const newBal = prompt('Enter your current bank balance:', currentBal);
+            if (newBal !== null && newBal !== '') {
+                const amount = parseFloat(newBal.replace(/[$,]/g, ''));
+                if (!isNaN(amount)) {
+                    updateBalance(amount);
+                }
+            }
+        };
+        
+        const updateBalance = async (amount) => {
+            try {
+                await api('/balance', 'POST', { balance: amount });
+                loadDashboard();
+            } catch (err) {
+                alert('Failed to update balance: ' + err.message);
+            }
+        };
+        
         // Forecast
         const showForecast = async (days) => {
             showScreen('forecastView');
