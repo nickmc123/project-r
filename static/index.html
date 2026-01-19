@@ -957,6 +957,18 @@
         </div>
     </div>
     
+    <!-- Password Reset Success Screen -->
+    <div id="resetSuccess" class="screen">
+        <div class="auth-container">
+            <div class="logo-large">✅</div>
+            <h1 class="app-title" style="color: #4ade80;">Password Updated!</h1>
+            <p class="app-subtitle">Your password has been successfully reset.</p>
+            <p class="app-subtitle">You can now log in with your new password.</p>
+            
+            <button class="btn btn-primary" style="margin-top: 32px;" onclick="goToLoginAfterReset()">Go to Login</button>
+        </div>
+    </div>
+    
     <!-- Onboarding: Company Info -->
     <div id="onboarding1" class="screen">
         <div class="onboarding-header">
@@ -1448,11 +1460,20 @@
             
             try {
                 await api('/auth/reset-password', 'POST', { token: resetToken, new_password: newPass });
-                document.getElementById('resetMessage').innerHTML = `<div class="message message-success">Password reset successfully! Redirecting to login...</div>`;
-                setTimeout(() => showScreen('auth'), 2000);
+                // Clear form and show success screen
+                document.getElementById('resetNewPassword').value = '';
+                document.getElementById('resetConfirmPassword').value = '';
+                resetToken = null;
+                // Remove token from URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+                showScreen('resetSuccess');
             } catch (err) {
                 document.getElementById('resetMessage').innerHTML = `<div class="message message-error">${err.message}</div>`;
             }
+        };
+        
+        const goToLoginAfterReset = () => {
+            showScreen('auth');
         };
         
         // Check for reset token in URL
