@@ -1557,6 +1557,8 @@ def create_schedule_rule(req: ScheduleRuleRequest, user: User = Depends(get_curr
 @app.get("/forecast")
 def get_forecast(
     horizon_days: int = Query(90, ge=1, le=365),
+    period: str = Query("weekly", regex="^(daily|weekly|monthly)$"),
+    count: int = Query(None, ge=1, le=365),
     starting_balance: Optional[float] = None,
     apply_sentiments: bool = True,
     user: User = Depends(get_current_user),
@@ -1567,12 +1569,20 @@ def get_forecast(
     if user.plan != "pro" and horizon_days > 90:
         horizon_days = 90
     
-    return compute_forecast(
+    result = compute_forecast(
         db, user.id,
         horizon_days=horizon_days,
         starting_balance=starting_balance,
         apply_sentiments=apply_sentiments
     )
+    
+    # Limit the series by count if specified
+    if count and "baseline_series" in result:
+        result["baseline_series"] = result["baseline_series"][:count]
+    if count and "adjusted_series" in result:
+        result["adjusted_series"] = result["adjusted_series"][:count]
+    
+    return result
 
 @app.get("/summary")
 def get_summary(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
