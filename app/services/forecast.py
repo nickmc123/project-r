@@ -298,16 +298,13 @@ def compute_forecast(db: Session, user_id: int, horizon_days: int = 90,
             if group.adjusted_trend_percent is not None:
                 # Use absolute value of the percentage
                 change_pct = abs(float(group.adjusted_trend_percent))
-                # Get direction from adjusted_trend_direction, fall back to sign of percent
-                direction = group.adjusted_trend_direction
-                if direction is None:
-                    # Infer direction from the sign of the percentage
-                    direction = "down" if group.adjusted_trend_percent < 0 else "up"
+                # Infer direction from the sign of the percentage
+                # (adjusted_trend_direction column doesn't exist in model)
+                direction = "down" if group.adjusted_trend_percent < 0 else "up"
                 
                 # Map trend values to forecast direction
                 # "up" = continue increasing at this rate
                 # "down" = reverse/decline at this rate
-                # "flat" = no change from baseline
                 if direction == "up":
                     sentiments[group.id] = {
                         "direction": "continue",
