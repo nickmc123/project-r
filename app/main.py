@@ -696,18 +696,26 @@ def get_forecast(
 @app.get("/summary")
 def get_summary(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Quick summary of current position"""
-    forecast = compute_forecast(db, user.id, horizon_days=30)
+    # Use user's starting balance if set
+    start_bal = float(user.starting_balance) if user.starting_balance else None
+    forecast = compute_forecast(db, user.id, horizon_days=30, starting_balance=start_bal)
     
     if "error" in forecast:
         return {"error": forecast["error"]}
     
+    # Return both calculated and adjusted projections
+    baseline = forecast["summary"]["baseline"]
+    adjusted = forecast["summary"].get("adjusted", baseline)
+    
     return {
         "current_balance": forecast["starting_balance"],
-        "low_point": forecast["summary"]["baseline"]["low_point"],
-        "high_point": forecast["summary"]["baseline"]["high_point"],
-        "monthly_profit": forecast["summary"]["baseline"]["monthly_profit"],
-        "status": "HEALTHY" if forecast["summary"]["baseline"]["low_point"]["balance"] > 10000 else 
-                  "TIGHT" if forecast["summary"]["baseline"]["low_point"]["balance"] > 0 else "CRITICAL"
+        "low_point": baseline["low_point"],
+        "high_point": baseline["high_point"],
+        "monthly_profit": baseline["monthly_profit"],
+        "monthly_profit_calculated": baseline["monthly_profit"],
+        "monthly_profit_adjusted": adjusted.get("monthly_profit", baseline["monthly_profit"]),
+        "status": "HEALTHY" if baseline["low_point"]["balance"] > 10000 else 
+                  "TIGHT" if baseline["low_point"]["balance"] > 0 else "CRITICAL"
     }
 
 # Transactions
@@ -767,6 +775,17 @@ def delete_all_transactions(user: User = Depends(get_current_user), db: Session 
 class AskRequest(BaseModel):
     question: str
 
+@app.post("/balance")
+def update_balance(
+    balance: float = Body(..., embed=True),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update the user's starting balance"""
+    user.starting_balance = balance
+    db.commit()
+    return {"success": True, "balance": balance}
+
 @app.get("/ask")
 async def ask_question_get(
     question: str = Query(..., description="Natural language question"),
@@ -776,8 +795,9 @@ async def ask_question_get(
     """Answer a natural language question about cash flow"""
     from .services.llm import get_llm_service
     
-    # Get forecast data for context
-    forecast = compute_forecast(db, user.id, horizon_days=90)
+    # Get forecast data for context - use user's starting balance
+    start_bal = float(user.starting_balance) if user.starting_balance else None
+    forecast = compute_forecast(db, user.id, horizon_days=90, starting_balance=start_bal)
     
     # Build data dict for LLM
     forecast_data = {
@@ -836,8 +856,9 @@ async def ask_question_post(
     """Answer a natural language question about cash flow (POST)"""
     from .services.llm import get_llm_service
     
-    # Get forecast data for context
-    forecast = compute_forecast(db, user.id, horizon_days=90)
+    # Get forecast data for context - use user's starting balance
+    start_bal = float(user.starting_balance) if user.starting_balance else None
+    forecast = compute_forecast(db, user.id, horizon_days=90, starting_balance=start_bal)
     
     # Build data dict for LLM
     forecast_data = {
