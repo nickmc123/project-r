@@ -1019,7 +1019,7 @@ def get_group_trend_detail(
     txns = db.query(Transaction).filter(
         Transaction.user_id == user.id,
         Transaction.group_id == group_id
-    ).order_by(Transaction.date.desc()).all()
+    ).order_by(Transaction.date_posted.desc()).all()
     
     if not txns:
         return {
@@ -1038,9 +1038,13 @@ def get_group_trend_detail(
     period_totals = defaultdict(lambda: {"total": 0, "count": 0, "transactions": []})
     
     for t in txns:
-        txn_date = t.date
-        if txn_date is None:
+        # Parse the date string (YYYY-MM-DD format)
+        if not t.date_posted:
             continue  # Skip transactions without dates
+        try:
+            txn_date = datetime.strptime(t.date_posted, "%Y-%m-%d").date()
+        except:
+            continue
         if period == "weekly":
             # Start of week (Monday)
             start_of_week = txn_date - timedelta(days=txn_date.weekday())
@@ -1048,13 +1052,13 @@ def get_group_trend_detail(
         else:  # monthly
             period_key = txn_date.strftime("%Y-%m")
         
-        period_totals[period_key]["total"] += float(t.amount)
+        period_totals[period_key]["total"] += float(t.amount_signed)
         period_totals[period_key]["count"] += 1
         period_totals[period_key]["transactions"].append({
             "id": t.id,
-            "date": t.date.isoformat() if t.date else None,
+            "date": t.date_posted,
             "description": t.description,
-            "amount": float(t.amount)
+            "amount": float(t.amount_signed)
         })
     
     # Convert to list sorted by period
@@ -1319,7 +1323,7 @@ def get_group_trend_detail(group_id: int, period: str = "week", user: User = Dep
     txns = db.query(Transaction).filter(
         Transaction.group_id == group_id,
         Transaction.user_id == user.id
-    ).order_by(Transaction.date.desc()).all()
+    ).order_by(Transaction.date_posted.desc()).all()
     
     if not txns:
         return {
@@ -1345,22 +1349,26 @@ def get_group_trend_detail(group_id: int, period: str = "week", user: User = Dep
     periods = defaultdict(lambda: {"total": 0, "count": 0, "transactions": []})
     
     for t in txns:
+        if not t.date_posted:
+            continue
+        try:
+            d = datetime.strptime(t.date_posted, "%Y-%m-%d").date()
+        except:
+            continue
         if period == "week":
             # Get ISO week
-            d = t.date if isinstance(t.date, date) else datetime.strptime(t.date, "%Y-%m-%d").date()
             year, week, _ = d.isocalendar()
             key = f"{year}-W{week:02d}"
         else:  # month
-            d = t.date if isinstance(t.date, date) else datetime.strptime(t.date, "%Y-%m-%d").date()
             key = f"{d.year}-{d.month:02d}"
         
-        periods[key]["total"] += float(t.amount)
+        periods[key]["total"] += float(t.amount_signed)
         periods[key]["count"] += 1
         periods[key]["transactions"].append({
             "id": t.id,
-            "date": str(t.date),
+            "date": t.date_posted,
             "description": t.description,
-            "amount": float(t.amount)
+            "amount": float(t.amount_signed)
         })
     
     # Sort periods
