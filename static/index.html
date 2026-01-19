@@ -1520,8 +1520,8 @@
             
             <!-- Period Toggle -->
             <div style="display:flex;gap:8px;margin-bottom:16px;">
-                <button id="weeklyBtn" onclick="setCategoryPeriod('week')" class="period-toggle-btn active">Weekly</button>
-                <button id="monthlyBtn" onclick="setCategoryPeriod('month')" class="period-toggle-btn">Monthly</button>
+                <button id="weeklyBtn" onclick="setCategoryPeriod('weekly')" class="period-toggle-btn active">Weekly</button>
+                <button id="monthlyBtn" onclick="setCategoryPeriod('monthly')" class="period-toggle-btn">Monthly</button>
             </div>
             
             <!-- Period Breakdown -->
@@ -2567,7 +2567,7 @@
         
         // ============ CATEGORY DETAIL ============
         let currentCategoryId = null;
-        let currentCategoryPeriod = 'week';
+        let currentCategoryPeriod = 'weekly';
         let currentCategoryData = null;
         let currentTrendDirection = 'flat';
         let currentCorrDirection = 'same';
@@ -2582,7 +2582,7 @@
             // Reset period toggle
             document.getElementById('weeklyBtn').classList.add('active');
             document.getElementById('monthlyBtn').classList.remove('active');
-            currentCategoryPeriod = 'week';
+            currentCategoryPeriod = 'weekly';
             
             await loadCategoryDetail();
         };
