@@ -905,6 +905,13 @@
             <p class="auth-toggle" id="forgotPasswordLink" style="margin-top: 12px;">
                 <a href="#" onclick="showForgotPassword(); return false;">Forgot Password?</a>
             </p>
+            
+            <div style="text-align: center; margin-top: 32px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 12px;">Just want to explore?</p>
+                <a href="#" onclick="demoLogin(); return false;" style="color: #10B981; font-size: 16px; font-weight: 600; text-decoration: none;">
+                    ✨ Try Demo Account
+                </a>
+            </div>
         </div>
     </div>
     
@@ -1457,6 +1464,29 @@
                 }
             } catch (err) {
                 document.getElementById('authMessage').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        // Demo Login - bypasses form
+        const demoLogin = async () => {
+            try {
+                const res = await api('/auth/login', 'POST', {
+                    email: 'demo@projectr.app',
+                    password: 'demo123'
+                });
+                token = res.token;
+                user = res.user;
+                localStorage.setItem('projectr_token', token);
+                
+                if (user.onboarding_complete) {
+                    showScreen('dashboard');
+                    loadDashboard();
+                } else {
+                    showScreen('onboarding1');
+                    document.getElementById('companyName').value = user.company_name || '';
+                }
+            } catch (err) {
+                document.getElementById('authMessage').innerHTML = `<div class="message message-error">Demo account unavailable. Try again later.</div>`;
             }
         };
         
