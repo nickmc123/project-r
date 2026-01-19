@@ -996,6 +996,101 @@ def get_group_trend(group_id: int, user: User = Depends(get_current_user), db: S
     """Analyze trend for a group"""
     return analyze_trends(db, user.id, group_id)
 
+@app.get("/groups/{group_id}/trend-detail")
+def get_group_trend_detail(
+    group_id: int, 
+    period: str = Query("weekly", regex="^(weekly|monthly)$"),
+    user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Get transaction totals by week or month for trend analysis"""
+    from datetime import timedelta
+    from collections import defaultdict
+    
+    # Get the group
+    group = db.query(TransactionGroup).filter(
+        TransactionGroup.id == group_id,
+        TransactionGroup.user_id == user.id
+    ).first()
+    if not group:
+        raise HTTPException(404, "Group not found")
+    
+    # Get transactions for this group
+    txns = db.query(Transaction).filter(
+        Transaction.user_id == user.id,
+        Transaction.group_id == group_id
+    ).order_by(Transaction.date.desc()).all()
+    
+    if not txns:
+        return {
+            "group": {
+                "id": group.id,
+                "name": group.name,
+                "trend": group.trend,
+                "calculated_trend_percent": float(group.calculated_trend_percent) if group.calculated_trend_percent else 0,
+                "adjusted_trend_percent": float(group.adjusted_trend_percent) if group.adjusted_trend_percent else None
+            },
+            "periods": [],
+            "period_type": period
+        }
+    
+    # Group by week or month
+    period_totals = defaultdict(lambda: {"total": 0, "count": 0, "transactions": []})
+    
+    for t in txns:
+        txn_date = t.date
+        if period == "weekly":
+            # Start of week (Monday)
+            start_of_week = txn_date - timedelta(days=txn_date.weekday())
+            period_key = start_of_week.strftime("%Y-%m-%d")
+        else:  # monthly
+            period_key = txn_date.strftime("%Y-%m")
+        
+        period_totals[period_key]["total"] += float(t.amount)
+        period_totals[period_key]["count"] += 1
+        period_totals[period_key]["transactions"].append({
+            "id": t.id,
+            "date": t.date.isoformat() if t.date else None,
+            "description": t.description,
+            "amount": float(t.amount)
+        })
+    
+    # Convert to list sorted by period
+    periods = []
+    for period_key in sorted(period_totals.keys(), reverse=True):
+        data = period_totals[period_key]
+        periods.append({
+            "period": period_key,
+            "total": round(data["total"], 2),
+            "count": data["count"],
+            "transactions": data["transactions"]
+        })
+    
+    # Calculate trend from data
+    calc_trend_pct = 0
+    if len(periods) >= 2:
+        # Compare most recent to previous
+        recent_avg = periods[0]["total"]
+        older_avg = periods[1]["total"]
+        if older_avg != 0:
+            calc_trend_pct = round((recent_avg - older_avg) / abs(older_avg) * 100, 1)
+    
+    return {
+        "group": {
+            "id": group.id,
+            "name": group.name,
+            "trend": group.trend or "flat",
+            "calculated_trend_percent": calc_trend_pct,
+            "adjusted_trend_percent": float(group.adjusted_trend_percent) if group.adjusted_trend_percent else None,
+            "trend_period": group.trend_period or "month",
+            "trend_duration_days": group.trend_duration_days,
+            "trend_then": group.trend_then,
+            "trend_then_percent": float(group.trend_then_percent) if group.trend_then_percent else None
+        },
+        "periods": periods,
+        "period_type": period
+    }
+
 class UpdateGroupRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
