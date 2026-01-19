@@ -1,0 +1,2734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#FF6B00">
+    <title>Project-R | Cash Flow Forecasting</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icon-192.png">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --primary: #FF6B00;
+            --primary-light: #FF8A65;
+            --bg: #1a1a2e;
+            --card-bg: rgba(255,255,255,0.08);
+            --text: #fff;
+            --text-muted: rgba(255,255,255,0.7);
+            --success: #4CAF50;
+            --danger: #f44336;
+            --warning: #FF9800;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--bg) 0%, #16213e 100%);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .screen { display: none; min-height: 100vh; padding: 20px; padding-bottom: 40px; overflow-y: auto; }
+        .screen.active { display: flex; flex-direction: column; }
+        #auth.active { overflow: hidden; height: 100vh; }
+        #dashboard { padding-bottom: 60px; }
+        
+        /* Auth Screen */
+        .auth-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            height: 100vh;
+            padding: 40px 20px 20px;
+            overflow: hidden;
+        }
+        
+        .logo-large {
+            font-size: 40px;
+            margin-bottom: 6px;
+        }
+        
+        .app-title {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 4px;
+        }
+        
+        .app-subtitle {
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-bottom: 24px;
+        }
+        
+        .auth-form {
+            width: 100%;
+            max-width: 320px;
+        }
+        
+        .form-group {
+            margin-bottom: 12px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            color: var(--text-muted);
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 10px;
+            background: var(--card-bg);
+            color: var(--text);
+            font-size: 15px;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+        }
+        
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            margin-top: 12px;
+        }
+        
+        .auth-toggle {
+            margin-top: 16px;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        
+        .auth-toggle a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        /* Onboarding */
+        .onboarding-header {
+            text-align: center;
+            padding: 20px 0;
+        }
+        
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .step-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .step-dot.active {
+            background: var(--primary);
+        }
+        
+        .step-dot.complete {
+            background: var(--success);
+        }
+        
+        .onboarding-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .onboarding-subtitle {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        
+        .onboarding-content {
+            flex: 1;
+            padding: 20px 0;
+        }
+        
+        /* Data Upload */
+        .upload-zone {
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 16px;
+            padding: 40px 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(255,107,0,0.1);
+        }
+        
+        .upload-icon { font-size: 48px; margin-bottom: 16px; }
+        
+        .upload-text { color: var(--text-muted); margin-bottom: 8px; }
+        
+        .paste-area {
+            width: 100%;
+            min-height: 200px;
+            padding: 16px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            background: var(--card-bg);
+            color: var(--text);
+            font-size: 14px;
+            font-family: monospace;
+            resize: vertical;
+        }
+        
+        .or-divider {
+            display: flex;
+            align-items: center;
+            margin: 20px 0;
+            color: var(--text-muted);
+        }
+        
+        .or-divider::before, .or-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .or-divider span { padding: 0 16px; }
+        
+        /* Transaction Groups */
+        .group-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .group-name {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        
+        .group-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .badge-inflow { background: rgba(76,175,80,0.2); color: var(--success); }
+        .badge-outflow { background: rgba(244,67,54,0.2); color: var(--danger); }
+        
+        .group-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        
+        .group-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .group-actions button {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+        }
+        
+        /* Dashboard */
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0 20px;
+        }
+        
+        .company-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+        }
+        
+        .balance-card {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .balance-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+        
+        .balance-amount {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        
+        .balance-status {
+            font-size: 14px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-top: 8px;
+        }
+        
+        .status-healthy { background: rgba(76,175,80,0.3); }
+        .status-tight { background: rgba(255,152,0,0.3); }
+        .status-critical { background: rgba(244,67,54,0.3); }
+        
+        .stats-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            flex: 1;
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+        }
+        
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        
+        .stat-value {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        
+        .stat-date {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        
+        .action-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        
+        .action-btn {
+            background: var(--card-bg);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 20px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .action-btn:active {
+            transform: scale(0.98);
+            background: rgba(255,107,0,0.2);
+        }
+        
+        .action-icon { font-size: 28px; margin-bottom: 8px; }
+        .action-label { font-size: 13px; font-weight: 600; }
+        
+        /* Forecast View */
+        .forecast-header {
+            display: flex;
+            align-items: center;
+            padding: 10px 0 20px;
+        }
+        
+        .back-btn {
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+            margin-right: 8px;
+        }
+        
+        .forecast-title {
+            font-size: 20px;
+            font-weight: 700;
+        }
+        
+        .forecast-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .forecast-week {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        
+        .week-date {
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        
+        .week-flows {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+        
+        .flow-item {
+            flex: 1;
+        }
+        
+        .flow-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        
+        .flow-amount {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .flow-amount.inflow { color: var(--success); }
+        .flow-amount.outflow { color: var(--danger); }
+        
+        .week-balance {
+            padding-top: 12px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .week-balance .flow-amount {
+            font-size: 20px;
+        }
+        
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .modal-overlay.active { display: flex; }
+        
+        .modal {
+            background: var(--bg);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .modal-title { font-size: 18px; font-weight: 700; }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 24px;
+            cursor: pointer;
+        }
+        
+        .modal-body { padding: 20px; }
+        
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        /* Select Dropdown */
+        select {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            background: var(--card-bg);
+            color: var(--text);
+            font-size: 16px;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+        }
+        
+        /* Checkbox */
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+        
+        .checkbox-item input {
+            margin-right: 12px;
+            width: 18px;
+            height: 18px;
+        }
+        
+        /* Error/Success Messages */
+        .message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        
+        .message-error {
+            background: rgba(244,67,54,0.2);
+            color: #ff6b6b;
+        }
+        
+        .message-success {
+            background: rgba(76,175,80,0.2);
+            color: #69f0ae;
+        }
+        
+        /* Loading Spinner */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Hidden file input */
+        input[type="file"] { display: none; }
+        
+        /* Import Review Styles */
+        .import-review-table {
+            width: 100%;
+            font-size: 13px;
+            overflow-x: auto;
+        }
+        
+        .import-row {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: grid;
+            grid-template-columns: 90px 1fr 100px 70px 40px;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .import-row.header {
+            background: rgba(255,255,255,0.05);
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+        
+        .import-row input, .import-row select {
+            padding: 8px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
+        
+        .import-row .delete-btn {
+            background: rgba(244,67,54,0.2);
+            color: #ff6b6b;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .type-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .type-badge.debit { background: rgba(244,67,54,0.2); color: #ff6b6b; }
+        .type-badge.credit { background: rgba(76,175,80,0.2); color: #69f0ae; }
+        
+        /* Field Mapping Styles */
+        .sample-data-box {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            margin-bottom: 16px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .sample-data-box .line {
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .sample-data-box .col {
+            display: inline-block;
+            padding: 2px 8px;
+            margin: 2px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+        
+        .mapping-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .mapping-field {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 12px;
+        }
+        
+        .mapping-field label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        
+        .mapping-field select {
+            width: 100%;
+            padding: 10px;
+            font-size: 14px;
+        }
+        
+        .custom-field-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .custom-field-row input {
+            flex: 1;
+            padding: 10px;
+        }
+        
+        .import-status {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .import-status .count {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .import-status .label {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        
+        /* Chat Interface */
+        .chat-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 16px;
+        }
+        
+        .chat-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 0;
+        }
+        
+        .chat-welcome {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        .welcome-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .chat-welcome h3 {
+            font-size: 20px;
+            margin-bottom: 8px;
+        }
+        
+        .chat-welcome p {
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+        
+        .quick-questions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+        }
+        
+        .quick-q {
+            background: var(--card-bg);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 20px;
+            padding: 8px 16px;
+            color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .quick-q:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .chat-bubble {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            margin-bottom: 12px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .chat-bubble.user {
+            background: var(--primary);
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .chat-bubble.bot {
+            background: var(--card-bg);
+            border-bottom-left-radius: 4px;
+        }
+        
+        .chat-bubble strong {
+            font-weight: 600;
+        }
+        
+        .chat-input-container {
+            display: flex;
+            gap: 10px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .chat-input {
+            flex: 1;
+            padding: 14px 18px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 25px;
+            background: var(--card-bg);
+            color: var(--text);
+            font-size: 15px;
+        }
+        
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .send-btn {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .send-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 12px 16px;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: typing 1.4s infinite both;
+        }
+        
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-8px); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Auth Screen -->
+    <div id="authScreen" class="screen active">
+        <div class="auth-container">
+            <div class="logo-large">📊</div>
+            <h1 class="app-title">Project-R</h1>
+            <p class="app-subtitle">Smart Cash Flow Forecasting</p>
+            
+            <form class="auth-form" id="authForm">
+                <div id="authMessage"></div>
+                
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="authEmail" required placeholder="you@company.com">
+                </div>
+                
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="authPassword" required placeholder="••••••••">
+                </div>
+                
+                <div class="form-group" id="companyGroup" style="display:none;">
+                    <label>Company Name</label>
+                    <input type="text" id="authCompany" placeholder="Your Company">
+                </div>
+                
+                <button type="submit" class="btn btn-primary" id="authSubmit">Log In</button>
+            </form>
+            
+            <p class="auth-toggle">
+                <span id="authToggleText">Don't have an account?</span>
+                <a href="#" id="authToggle">Sign Up</a>
+            </p>
+            
+            <p class="auth-toggle" id="forgotPasswordLink" style="margin-top: 8px;">
+                <a href="#" onclick="showForgotPassword(); return false;">Forgot Password?</a>
+            </p>
+            
+            <div style="text-align: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 8px;">Just want to explore?</p>
+                <a href="#" onclick="demoLogin(); return false;" style="color: #10B981; font-size: 15px; font-weight: 600; text-decoration: none;">
+                    ✨ Try Demo Account
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Forgot Password Screen -->
+    <div id="forgotPassword" class="screen">
+        <div class="auth-container">
+            <div class="logo-large">📊</div>
+            <h1 class="app-title">Reset Password</h1>
+            <p class="app-subtitle">Enter your email to receive a reset link</p>
+            
+            <form class="auth-form" onsubmit="handleForgotPassword(event)">
+                <div id="forgotMessage"></div>
+                
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="forgotEmail" required placeholder="you@company.com">
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Send Reset Link</button>
+            </form>
+            
+            <p class="auth-toggle" style="margin-top: 24px;">
+                <a href="#" onclick="showScreen('auth'); return false;">← Back to Login</a>
+            </p>
+        </div>
+    </div>
+    
+    <!-- Reset Password Screen -->
+    <div id="resetPassword" class="screen">
+        <div class="auth-container">
+            <div class="logo-large">🔐</div>
+            <h1 class="app-title">Set New Password</h1>
+            <p class="app-subtitle">Enter your new password</p>
+            
+            <form class="auth-form" onsubmit="handleResetPassword(event)">
+                <div id="resetMessage"></div>
+                
+                <div class="form-group">
+                    <label>New Password</label>
+                    <input type="password" id="resetNewPassword" required placeholder="••••••••" minlength="6">
+                </div>
+                
+                <div class="form-group">
+                    <label>Confirm Password</label>
+                    <input type="password" id="resetConfirmPassword" required placeholder="••••••••" minlength="6">
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Reset Password</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Password Reset Success Screen -->
+    <div id="resetSuccess" class="screen">
+        <div class="auth-container">
+            <div class="logo-large">✅</div>
+            <h1 class="app-title" style="color: #4ade80;">Password Updated!</h1>
+            <p class="app-subtitle">Your password has been successfully reset.</p>
+            <p class="app-subtitle">You can now log in with your new password.</p>
+            
+            <button class="btn btn-primary" style="margin-top: 32px;" onclick="goToLoginAfterReset()">Go to Login</button>
+        </div>
+    </div>
+    
+    <!-- Onboarding: Company Info -->
+    <div id="onboarding1" class="screen">
+        <div class="onboarding-header">
+            <div class="step-indicator">
+                <div class="step-dot active"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+            </div>
+            <h2 class="onboarding-title">Let's get started</h2>
+            <p class="onboarding-subtitle">Tell us about your business</p>
+        </div>
+        
+        <div class="onboarding-content">
+            <div class="form-group">
+                <label>Company Name</label>
+                <input type="text" id="companyName" placeholder="Acme Inc.">
+            </div>
+            
+            <div class="form-group">
+                <label>Company Website (optional)</label>
+                <input type="text" id="companyWebsite" placeholder="acme.com">
+            </div>
+            
+            <p style="color: var(--text-muted); font-size: 13px; margin-top: 20px;">
+                We'll try to fetch your logo and brand colors from your website.
+            </p>
+        </div>
+        
+        <button class="btn btn-primary" onclick="submitCompanyInfo()">Continue</button>
+    </div>
+    
+    <!-- Onboarding: Upload Data -->
+    <div id="onboarding2" class="screen">
+        <div class="onboarding-header">
+            <div class="step-indicator">
+                <div class="step-dot complete"></div>
+                <div class="step-dot active"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+            </div>
+            <h2 class="onboarding-title">Import your data</h2>
+            <p class="onboarding-subtitle">Upload 90 days of bank transactions</p>
+        </div>
+        
+        <div class="onboarding-content">
+            <div class="upload-zone" id="uploadZone">
+                <div class="upload-icon">📁</div>
+                <p class="upload-text">Tap to upload CSV file</p>
+                <p style="font-size: 12px; color: var(--text-muted);">or drag & drop</p>
+            </div>
+            <input type="file" id="fileInput" accept=".csv,.txt">
+            
+            <div class="or-divider"><span>OR</span></div>
+            
+            <div class="form-group">
+                <label>Paste bank data</label>
+                <textarea class="paste-area" id="pasteArea" placeholder="Copy and paste transactions from your bank website..."></textarea>
+            </div>
+        </div>
+        
+        <button class="btn btn-primary" onclick="submitBankData()">Import Data</button>
+        <button class="btn btn-secondary" onclick="connectQuickBooks()">Connect QuickBooks</button>
+    </div>
+    
+    <!-- Import: Field Mapping Screen -->
+    <div id="importMapping" class="screen">
+        <div class="page-header">
+            <button class="back-btn" onclick="showScreen('onboarding2')">←</button>
+            <span class="page-title">Define Field Mapping</span>
+        </div>
+        
+        <div class="onboarding-content">
+            <p style="color: var(--text-muted); margin-bottom: 16px;">
+                We couldn't automatically detect all fields. Please help identify them:
+            </p>
+            
+            <div class="sample-data-box" id="sampleDataDisplay"></div>
+            
+            <div class="mapping-grid">
+                <div class="mapping-field">
+                    <label>Date Column</label>
+                    <select id="mapDate">
+                        <option value="">Not in columns</option>
+                    </select>
+                </div>
+                <div class="mapping-field">
+                    <label>Amount Column</label>
+                    <select id="mapAmount">
+                        <option value="">Select...</option>
+                    </select>
+                </div>
+                <div class="mapping-field">
+                    <label>Description Column</label>
+                    <select id="mapDescription">
+                        <option value="">Select...</option>
+                    </select>
+                </div>
+                <div class="mapping-field">
+                    <label>Type Column (Debit/Credit)</label>
+                    <select id="mapSignColumn">
+                        <option value="">All same type</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group" id="signDefaultGroup" style="display:none;">
+                <label>Default transaction type:</label>
+                <div style="display:flex;gap:12px;margin-top:8px;">
+                    <label class="checkbox-item" style="flex:1;justify-content:center;">
+                        <input type="radio" name="defaultSign" value="debit" checked> Debit (expense)
+                    </label>
+                    <label class="checkbox-item" style="flex:1;justify-content:center;">
+                        <input type="radio" name="defaultSign" value="credit"> Credit (income)
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group" id="signValuesGroup" style="display:none;">
+                <label>What values indicate Debit vs Credit?</label>
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                    <input type="text" id="debitValue" placeholder="Debit value (e.g. DR)" style="flex:1;">
+                    <input type="text" id="creditValue" placeholder="Credit value (e.g. CR)" style="flex:1;">
+                </div>
+            </div>
+            
+            <div class="mapping-grid">
+                <div class="mapping-field">
+                    <label>Balance Column (optional)</label>
+                    <select id="mapBalance">
+                        <option value="">None</option>
+                    </select>
+                </div>
+                <div class="mapping-field">
+                    <label>Account Column (optional)</label>
+                    <select id="mapAccount">
+                        <option value="">None</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Custom Fields (optional)</label>
+                <div id="customFields">
+                    <div class="custom-field-row">
+                        <input type="text" id="customField1Name" placeholder="Field name">
+                        <select id="customField1Col"><option value="">Column</option></select>
+                    </div>
+                    <div class="custom-field-row">
+                        <input type="text" id="customField2Name" placeholder="Field name">
+                        <select id="customField2Col"><option value="">Column</option></select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <button class="btn btn-primary" onclick="applyFieldMapping()">Parse with Mapping</button>
+    </div>
+    
+    <!-- Import: Confirmation Screen -->
+    <div id="importConfirm" class="screen">
+        <div class="page-header">
+            <button class="back-btn" onclick="showScreen('onboarding2')">←</button>
+            <span class="page-title">Review Transactions</span>
+        </div>
+        
+        <div class="import-status">
+            <div class="count" id="importCount">0</div>
+            <div class="label">transactions found</div>
+        </div>
+        
+        <p style="text-align:center;color:var(--text-muted);margin-bottom:16px;">
+            Review and fix any issues before importing
+        </p>
+        
+        <div class="onboarding-content">
+            <div class="import-row header">
+                <div>Date</div>
+                <div>Description</div>
+                <div>Amount</div>
+                <div>Type</div>
+                <div></div>
+            </div>
+            <div id="importReviewRows"></div>
+        </div>
+        
+        <button class="btn btn-primary" onclick="confirmImport()">Import All</button>
+        <button class="btn btn-secondary" onclick="showScreen('importMapping')">Fix Field Mapping</button>
+    </div>
+    
+    <!-- Onboarding: Categorize -->
+    <div id="onboarding3" class="screen">
+        <div class="onboarding-header">
+            <div class="step-indicator">
+                <div class="step-dot complete"></div>
+                <div class="step-dot complete"></div>
+                <div class="step-dot active"></div>
+                <div class="step-dot"></div>
+            </div>
+            <h2 class="onboarding-title">Categorize transactions</h2>
+            <p class="onboarding-subtitle">We've grouped similar transactions. Review and name each group.</p>
+        </div>
+        
+        <div class="onboarding-content" id="groupsList">
+            <div class="spinner"></div>
+        </div>
+        
+        <button class="btn btn-primary" onclick="finishCategorization()">Continue</button>
+    </div>
+    
+    <!-- Onboarding: Trends -->
+    <div id="onboarding4" class="screen">
+        <div class="onboarding-header">
+            <div class="step-indicator">
+                <div class="step-dot complete"></div>
+                <div class="step-dot complete"></div>
+                <div class="step-dot complete"></div>
+                <div class="step-dot active"></div>
+            </div>
+            <h2 class="onboarding-title">Future expectations</h2>
+            <p class="onboarding-subtitle">Tell us about expected trends</p>
+        </div>
+        
+        <div class="onboarding-content" id="trendsList">
+            <p style="color: var(--text-muted); margin-bottom: 16px;">
+                Based on your history, we've detected some trends. Let us know if you expect them to continue, flatten, or reverse.
+            </p>
+            <div id="trendsContent"></div>
+        </div>
+        
+        <button class="btn btn-primary" onclick="completeOnboarding()">Finish Setup</button>
+    </div>
+    
+    <!-- Dashboard -->
+    <div id="dashboard" class="screen">
+        <div class="dashboard-header">
+            <div class="company-logo" id="companyLogo">P</div>
+            <div style="flex:1; margin-left:12px;">
+                <div style="font-weight:600;" id="dashCompanyName">Your Company</div>
+                <div style="font-size:12px; color:var(--text-muted);">Cash Flow Forecast</div>
+            </div>
+            <button style="background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;" onclick="showSettings()">⚙️</button>
+        </div>
+        
+        <div class="balance-card" onclick="showBalanceUpdate()">
+            <div class="balance-label">Current Balance</div>
+            <div class="balance-amount" id="currentBalance">$0</div>
+            <div class="balance-status status-healthy" id="statusBadge">LOADING...</div>
+        </div>
+        
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Low Point</div>
+                <div class="stat-value" id="lowPoint">—</div>
+                <div class="stat-date" id="lowPointDate"></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">High Point</div>
+                <div class="stat-value" id="highPoint">—</div>
+                <div class="stat-date" id="highPointDate"></div>
+            </div>
+        </div>
+        
+        <div class="stat-card" style="margin-bottom:20px;">
+            <div class="stat-label">30-Day Projected Cash Change</div>
+            <div style="display:flex;justify-content:space-around;margin-top:8px;">
+                <div style="text-align:center;">
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Calculated</div>
+                    <div class="stat-value" id="monthlyProfitCalc" style="font-size:18px;">—</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Adjusted</div>
+                    <div class="stat-value" id="monthlyProfitAdj" style="font-size:18px;">—</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="action-grid">
+            <div class="action-btn" onclick="showForecast(15)">
+                <div class="action-icon">📈</div>
+                <div class="action-label">15-Day Forecast</div>
+            </div>
+            <div class="action-btn" onclick="showForecast(30)">
+                <div class="action-icon">📊</div>
+                <div class="action-label">30-Day Forecast</div>
+            </div>
+            <div class="action-btn" onclick="showGroups()">
+                <div class="action-icon">📋</div>
+                <div class="action-label">Categories</div>
+            </div>
+            <div class="action-btn" onclick="showTransactions()">
+                <div class="action-icon">💳</div>
+                <div class="action-label">Transactions</div>
+            </div>
+            <div class="action-btn" onclick="showUpdateData()">
+                <div class="action-icon">📥</div>
+                <div class="action-label">Update Data</div>
+            </div>
+            <div class="action-btn" onclick="showChat()">
+                <div class="action-icon">💬</div>
+                <div class="action-label">Ask a Question</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Update Data Screen -->
+    <div id="updateData" class="screen">
+        <div class="page-header">
+            <button class="back-btn" onclick="showDashboard()">←</button>
+            <span class="page-title">Update Data</span>
+        </div>
+        
+        <div class="onboarding-content" style="padding-top: 20px;">
+            <p style="color:var(--text-muted); margin-bottom:16px; text-align:center;">
+                Paste new bank transactions below. Duplicates will be automatically skipped.
+            </p>
+            
+            <div class="form-group">
+                <label>Paste Transaction Data</label>
+                <textarea id="updateDataText" rows="12" placeholder="Paste your bank transactions here...&#10;&#10;Supported formats:&#10;• Tab-separated columns&#10;• CSV format&#10;• Date headers (e.g., JAN 15, 2026)"></textarea>
+            </div>
+            
+            <div id="updateDataMessage" style="margin-bottom: 16px;"></div>
+            
+            <button class="btn btn-primary" onclick="processUpdateData()">Import Transactions</button>
+            
+            <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border);">
+                <p style="color:var(--text-muted); font-size: 13px; margin-bottom: 12px;">Or upload a file:</p>
+                <input type="file" id="updateDataFile" accept=".csv,.txt,.xlsx" style="display:none" onchange="handleUpdateFile(event)">
+                <button class="btn btn-secondary" onclick="document.getElementById('updateDataFile').click()">📂 Choose File</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Chat View -->
+    <div id="chatView" class="screen">
+        <div class="chat-header">
+            <button class="back-btn" onclick="showDashboard()">← Done</button>
+            <h2 class="chat-title">Ask a Question</h2>
+        </div>
+        
+        <div class="chat-messages" id="chatMessages">
+            <div class="chat-welcome">
+                <div class="welcome-icon">💬</div>
+                <h3>How can I help?</h3>
+                <p>Ask me anything about your cash flow:</p>
+                <div class="quick-questions">
+                    <button class="quick-q" onclick="askQuick('What is my current balance?')">Current balance?</button>
+                    <button class="quick-q" onclick="askQuick('When is my low point?')">Low point?</button>
+                    <button class="quick-q" onclick="askQuick('How much profit am I making?')">Monthly profit?</button>
+                    <button class="quick-q" onclick="askQuick('Show me a 30 day forecast')">30-day forecast?</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-input-container">
+            <input type="text" id="chatInput" class="chat-input" placeholder="Ask me about your finances..." onkeypress="if(event.key==='Enter')sendQuestion()">
+            <button class="send-btn" onclick="sendQuestion()">➤</button>
+        </div>
+    </div>
+    
+    <!-- Forecast View -->
+    <div id="forecastView" class="screen">
+        <div class="forecast-header">
+            <button class="back-btn" onclick="showDashboard()">←</button>
+            <h2 class="forecast-title" id="forecastTitle">Forecast</h2>
+        </div>
+        
+        <div class="forecast-list" id="forecastList"></div>
+    </div>
+    
+    <!-- Transactions Management Screen -->
+    <div id="transactionsScreen" class="screen">
+        <div class="forecast-header">
+            <button class="back-btn" onclick="showDashboard()">←</button>
+            <h2 class="forecast-title">Transactions</h2>
+        </div>
+        
+        <!-- Search & Actions Bar -->
+        <div style="padding:0 16px 12px;">
+            <input type="text" id="txnSearch" placeholder="🔍 Search transactions..." 
+                   style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--card-bg);"
+                   oninput="filterTransactions()">
+        </div>
+        
+        <!-- Selection Actions -->
+        <div id="txnActions" style="display:none;padding:8px 16px;background:var(--primary);margin:0 16px 12px;border-radius:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span id="txnSelectedCount" style="color:white;font-size:14px;font-weight:500;">0 selected</span>
+                <div style="display:flex;gap:8px;">
+                    <button onclick="showMoveCategoryModal()" style="padding:6px 12px;background:white;color:var(--primary);border:none;border-radius:6px;font-size:13px;font-weight:500;">📁 Move</button>
+                    <button onclick="deleteSelectedTxns()" style="padding:6px 12px;background:#dc3545;color:white;border:none;border-radius:6px;font-size:13px;font-weight:500;">🗑️ Delete</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Select All Row -->
+        <div style="padding:0 16px 8px;display:flex;align-items:center;gap:10px;">
+            <input type="checkbox" id="selectAllTxns" onchange="toggleSelectAll()" style="width:18px;height:18px;">
+            <label for="selectAllTxns" style="font-size:13px;color:var(--text-muted);">Select All</label>
+        </div>
+        
+        <!-- Transaction List -->
+        <div id="txnList" style="padding:0 16px;overflow-y:auto;"></div>
+    </div>
+    
+    <!-- Categories Management Screen -->
+    <div id="categoriesScreen" class="screen">
+        <div class="forecast-header">
+            <button class="back-btn" onclick="showDashboard()">←</button>
+            <h2 class="forecast-title">Categories</h2>
+        </div>
+        
+        <!-- Search -->
+        <div style="padding:0 16px 12px;">
+            <input type="text" id="catSearch" placeholder="🔍 Search categories..." 
+                   style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--card-bg);"
+                   oninput="filterCategories()">
+        </div>
+        
+        <!-- Category List -->
+        <div id="catList" style="padding:0 16px;overflow-y:auto;"></div>
+    </div>
+    
+    <!-- Move to Category Modal -->
+    <div class="modal-overlay" id="moveCategoryModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">Move to Category</span>
+                <button class="modal-close" onclick="closeMoveCategoryModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom:12px;color:var(--text-muted);font-size:14px;">Select a category for the selected transactions:</p>
+                <div id="moveCategoryList" style="max-height:300px;overflow-y:auto;"></div>
+                <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
+                    <button onclick="createNewCategoryFromMove()" style="width:100%;padding:12px;background:var(--card-bg);border:2px dashed var(--border);border-radius:8px;color:var(--text-muted);font-size:14px;">+ Create New Category</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Trend Adjustment Modal -->
+    <div class="modal-overlay" id="trendModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">Set Trend Direction</span>
+                <button class="modal-close" onclick="closeTrendModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <p id="trendCategoryName" style="font-weight:600;margin-bottom:16px;"></p>
+                <p style="margin-bottom:16px;color:var(--text-muted);font-size:14px;">How do you expect this category to trend?</p>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    <button onclick="setTrend('up')" class="trend-btn" style="padding:14px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;text-align:left;font-size:15px;">
+                        <span style="color:var(--success);font-size:18px;">📈</span> <strong>Increasing</strong> <span style="color:var(--text-muted);font-size:13px;">- expect growth</span>
+                    </button>
+                    <button onclick="setTrend('flat')" class="trend-btn" style="padding:14px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;text-align:left;font-size:15px;">
+                        <span style="font-size:18px;">➡️</span> <strong>Flat</strong> <span style="color:var(--text-muted);font-size:13px;">- staying steady</span>
+                    </button>
+                    <button onclick="setTrend('down')" class="trend-btn" style="padding:14px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;text-align:left;font-size:15px;">
+                        <span style="color:var(--danger);font-size:18px;">📉</span> <strong>Decreasing</strong> <span style="color:var(--text-muted);font-size:13px;">- expect decline</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Category Modal -->
+    <div class="modal-overlay" id="categoryModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">Categorize Group</span>
+                <button class="modal-close" onclick="closeCategoryModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Group Name</label>
+                    <input type="text" id="groupNameInput">
+                </div>
+                
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="categorySelect"></select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Frequency</label>
+                    <select id="frequencySelect">
+                        <option value="daily">Daily (most business days)</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="semimonthly">Semi-monthly (twice per month)</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="uncommon">Uncommon/One-time</option>
+                    </select>
+                </div>
+                
+                <div class="checkbox-item">
+                    <input type="checkbox" id="allowOffsetsCheck">
+                    <label for="allowOffsetsCheck">Allow offsets (e.g., chargebacks, rebates)</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveCategoryModal()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let token = localStorage.getItem('projectr_token');
+        let user = null;
+        let isSignUp = false;
+        let suggestedGroups = [];
+        let currentGroupIndex = 0;
+        let categories = { inflow: [], outflow: [] };
+        
+        // API
+        const api = async (endpoint, method = 'GET', body = null) => {
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            
+            const opts = { method, headers };
+            if (body) opts.body = JSON.stringify(body);
+            
+            const res = await fetch(endpoint, opts);
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Request failed');
+            }
+            return res.json();
+        };
+        
+        // Format currency
+        const fmt = (n) => {
+            if (n === null || n === undefined) return '—';
+            const prefix = n < 0 ? '-' : '';
+            return prefix + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        };
+        
+        // Show screen
+        const showScreen = (id) => {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        };
+        
+        // Auth
+        document.getElementById('authToggle').onclick = (e) => {
+            e.preventDefault();
+            isSignUp = !isSignUp;
+            document.getElementById('authSubmit').textContent = isSignUp ? 'Create Account' : 'Log In';
+            document.getElementById('authToggleText').textContent = isSignUp ? 'Already have an account?' : "Don't have an account?";
+            document.getElementById('authToggle').textContent = isSignUp ? 'Log In' : 'Sign Up';
+            document.getElementById('companyGroup').style.display = isSignUp ? 'block' : 'none';
+        };
+        
+        document.getElementById('authForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            const company = document.getElementById('authCompany').value;
+            
+            try {
+                const endpoint = isSignUp ? '/auth/signup' : '/auth/login';
+                const body = isSignUp ? { email, password, company_name: company } : { email, password };
+                const res = await api(endpoint, 'POST', body);
+                
+                token = res.token;
+                user = res.user;
+                localStorage.setItem('projectr_token', token);
+                
+                if (user.onboarding_complete) {
+                    showScreen('dashboard');
+                    loadDashboard();
+                } else if (user.onboarding_step >= 2) {
+                    showScreen('onboarding3');
+                    loadSuggestedGroups();
+                } else if (user.onboarding_step >= 1) {
+                    showScreen('onboarding2');
+                } else {
+                    showScreen('onboarding1');
+                    document.getElementById('companyName').value = user.company_name || '';
+                }
+            } catch (err) {
+                document.getElementById('authMessage').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        // Demo Login - bypasses form
+        const demoLogin = async () => {
+            try {
+                const res = await api('/auth/login', 'POST', {
+                    email: 'demo@projectr.app',
+                    password: 'demo123'
+                });
+                token = res.token;
+                user = res.user;
+                localStorage.setItem('projectr_token', token);
+                
+                if (user.onboarding_complete) {
+                    showScreen('dashboard');
+                    loadDashboard();
+                } else {
+                    showScreen('onboarding1');
+                    document.getElementById('companyName').value = user.company_name || '';
+                }
+            } catch (err) {
+                document.getElementById('authMessage').innerHTML = `<div class="message message-error">Demo account unavailable. Try again later.</div>`;
+            }
+        };
+        
+        // Forgot Password
+        let resetToken = null;
+        
+        const showForgotPassword = () => {
+            showScreen('forgotPassword');
+            document.getElementById('forgotEmail').value = '';
+            document.getElementById('forgotMessage').innerHTML = '';
+        };
+        
+        const handleForgotPassword = async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('forgotEmail').value;
+            
+            try {
+                await api('/auth/forgot-password', 'POST', { email });
+                document.getElementById('forgotMessage').innerHTML = `
+                    <div class="message message-success">
+                        If that email exists, a reset link has been sent.<br>
+                        <small style="opacity: 0.8;">Check your email or contact support for the reset link.</small>
+                    </div>`;
+            } catch (err) {
+                document.getElementById('forgotMessage').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const handleResetPassword = async (e) => {
+            e.preventDefault();
+            const newPass = document.getElementById('resetNewPassword').value;
+            const confirmPass = document.getElementById('resetConfirmPassword').value;
+            
+            if (newPass !== confirmPass) {
+                document.getElementById('resetMessage').innerHTML = `<div class="message message-error">Passwords do not match</div>`;
+                return;
+            }
+            
+            if (newPass.length < 6) {
+                document.getElementById('resetMessage').innerHTML = `<div class="message message-error">Password must be at least 6 characters</div>`;
+                return;
+            }
+            
+            try {
+                await api('/auth/reset-password', 'POST', { token: resetToken, new_password: newPass });
+                // Clear form and show success screen
+                document.getElementById('resetNewPassword').value = '';
+                document.getElementById('resetConfirmPassword').value = '';
+                resetToken = null;
+                // Remove token from URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+                showScreen('resetSuccess');
+            } catch (err) {
+                document.getElementById('resetMessage').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const goToLoginAfterReset = () => {
+            showScreen('auth');
+        };
+        
+        // Check for reset token in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('reset_token')) {
+            resetToken = urlParams.get('reset_token');
+            showScreen('resetPassword');
+        }
+        
+        // Onboarding Step 1: Company Info
+        const submitCompanyInfo = async () => {
+            try {
+                await api('/onboarding/company', 'POST', {
+                    company_name: document.getElementById('companyName').value,
+                    company_website: document.getElementById('companyWebsite').value
+                });
+                showScreen('onboarding2');
+            } catch (err) {
+                alert(err.message);
+            }
+        };
+        
+        // Onboarding Step 2: Data Upload
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        
+        uploadZone.onclick = () => fileInput.click();
+        
+        uploadZone.ondragover = (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); };
+        uploadZone.ondragleave = () => uploadZone.classList.remove('dragover');
+        uploadZone.ondrop = (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                uploadFile();
+            }
+        };
+        
+        fileInput.onchange = () => uploadFile();
+        
+        const uploadFile = async () => {
+            const file = fileInput.files[0];
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const res = await fetch('/onboarding/upload-data', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                
+                if (!res.ok) throw new Error('Upload failed');
+                const data = await res.json();
+                const imp = data.imported;
+                
+                let msg = `Imported ${imp.added} transactions!`;
+                if (imp.duplicates > 0) {
+                    msg += `\n${imp.duplicates} duplicates skipped.`;
+                }
+                if (imp.added === 0 && imp.total_parsed === 0) {
+                    msg = `Couldn't parse any transactions from file.\n\nMake sure CSV has Date, Description, and Amount columns.`;
+                }
+                
+                alert(msg);
+                
+                if (imp.added > 0) {
+                    showScreen('onboarding3');
+                    loadSuggestedGroups();
+                }
+            } catch (err) {
+                alert(err.message);
+            }
+        };
+        
+        // Import state
+        let importData = {
+            rawData: '',
+            analysis: null,
+            mapping: null,
+            transactions: []
+        };
+        
+        const submitBankData = async () => {
+            const pasteData = document.getElementById('pasteArea').value;
+            if (!pasteData.trim()) {
+                alert('Please paste some data or upload a file');
+                return;
+            }
+            
+            importData.rawData = pasteData;
+            
+            try {
+                const res = await api('/import/analyze', 'POST', { data: pasteData });
+                
+                if (res.status === 'needs_mapping') {
+                    // Show field mapping screen
+                    importData.analysis = res.analysis;
+                    showFieldMappingScreen(res.analysis);
+                } else if (res.status === 'parsed') {
+                    // Show confirmation screen
+                    importData.transactions = res.transactions;
+                    importData.mapping = res.detected_mapping;
+                    showImportConfirmScreen(res.transactions);
+                } else {
+                    alert('Unexpected response from server');
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        };
+        
+        const showFieldMappingScreen = (analysis) => {
+            // Populate sample data display
+            const sampleBox = document.getElementById('sampleDataDisplay');
+            if (analysis.sample_data && analysis.sample_data.length > 0) {
+                sampleBox.innerHTML = analysis.sample_data.slice(0, 5).map(row => {
+                    const cols = row.parts.map((p, i) => 
+                        `<span class="col" title="Column ${i+1}">${p || '(empty)'}</span>`
+                    ).join('');
+                    return `<div class="line">${cols}</div>`;
+                }).join('');
+            } else {
+                sampleBox.innerHTML = '<p>No sample data available</p>';
+            }
+            
+            // Populate column dropdowns
+            const columns = analysis.columns || [];
+            const colOptions = columns.map((c, i) => {
+                const label = c.header || `Column ${i+1}`;
+                const sample = c.sample_values?.[0] || '';
+                return `<option value="${i}">${label} (${sample.substring(0,20)}...)</option>`;
+            }).join('');
+            
+            const dropdowns = ['mapDate', 'mapAmount', 'mapDescription', 'mapSignColumn', 'mapBalance', 'mapAccount', 'customField1Col', 'customField2Col'];
+            dropdowns.forEach(id => {
+                const el = document.getElementById(id);
+                const firstOpt = el.options[0].outerHTML;
+                el.innerHTML = firstOpt + colOptions;
+            });
+            
+            // Pre-select detected columns
+            columns.forEach((col, i) => {
+                if (col.type === 'date' && col.confidence > 70) {
+                    document.getElementById('mapDate').value = i;
+                } else if ((col.type === 'amount' || col.type === 'debit' || col.type === 'credit') && col.confidence > 70) {
+                    document.getElementById('mapAmount').value = i;
+                } else if ((col.type === 'description' || col.type === 'text') && col.confidence > 70) {
+                    document.getElementById('mapDescription').value = i;
+                } else if (col.type === 'balance' && col.confidence > 70) {
+                    document.getElementById('mapBalance').value = i;
+                }
+            });
+            
+            // Handle sign column visibility
+            document.getElementById('mapSignColumn').addEventListener('change', (e) => {
+                if (e.target.value === '') {
+                    document.getElementById('signDefaultGroup').style.display = 'block';
+                    document.getElementById('signValuesGroup').style.display = 'none';
+                } else {
+                    document.getElementById('signDefaultGroup').style.display = 'none';
+                    document.getElementById('signValuesGroup').style.display = 'block';
+                }
+            });
+            
+            showScreen('importMapping');
+        };
+        
+        const applyFieldMapping = async () => {
+            const mapping = {
+                separator: importData.analysis?.separator || '\t',
+                has_header: importData.analysis?.has_header || false,
+                skip_lines: 0,
+                fields: {},
+                custom_fields: []
+            };
+            
+            // Date
+            const dateCol = document.getElementById('mapDate').value;
+            mapping.fields.date = { column: dateCol !== '' ? parseInt(dateCol) : null };
+            
+            // Amount
+            const amountCol = document.getElementById('mapAmount').value;
+            if (amountCol === '') {
+                alert('Please select an amount column');
+                return;
+            }
+            mapping.fields.amount = { column: parseInt(amountCol) };
+            
+            // Description
+            const descCol = document.getElementById('mapDescription').value;
+            mapping.fields.description = { column: descCol !== '' ? parseInt(descCol) : null };
+            
+            // Sign/Type
+            const signCol = document.getElementById('mapSignColumn').value;
+            if (signCol === '') {
+                const defaultSign = document.querySelector('input[name="defaultSign"]:checked')?.value || 'debit';
+                mapping.fields.sign = { default: defaultSign };
+            } else {
+                mapping.fields.sign = { 
+                    column: parseInt(signCol),
+                    debit_value: document.getElementById('debitValue').value || 'DR',
+                    credit_value: document.getElementById('creditValue').value || 'CR'
+                };
+            }
+            
+            // Optional fields
+            const balanceCol = document.getElementById('mapBalance').value;
+            if (balanceCol !== '') {
+                mapping.fields.balance = { column: parseInt(balanceCol) };
+            }
+            
+            const accountCol = document.getElementById('mapAccount').value;
+            if (accountCol !== '') {
+                mapping.fields.account = { column: parseInt(accountCol) };
+            }
+            
+            // Custom fields
+            const cf1Name = document.getElementById('customField1Name').value;
+            const cf1Col = document.getElementById('customField1Col').value;
+            if (cf1Name && cf1Col !== '') {
+                mapping.custom_fields.push({ name: cf1Name, column: parseInt(cf1Col) });
+            }
+            
+            const cf2Name = document.getElementById('customField2Name').value;
+            const cf2Col = document.getElementById('customField2Col').value;
+            if (cf2Name && cf2Col !== '') {
+                mapping.custom_fields.push({ name: cf2Name, column: parseInt(cf2Col) });
+            }
+            
+            importData.mapping = mapping;
+            
+            try {
+                const res = await api('/import/with-mapping', 'POST', { 
+                    data: importData.rawData, 
+                    mapping: mapping 
+                });
+                
+                if (res.transactions && res.transactions.length > 0) {
+                    importData.transactions = res.transactions;
+                    showImportConfirmScreen(res.transactions);
+                } else {
+                    alert('No transactions could be parsed with this mapping. Please adjust.');
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        };
+        
+        const showImportConfirmScreen = (transactions) => {
+            document.getElementById('importCount').textContent = transactions.length;
+            
+            const container = document.getElementById('importReviewRows');
+            container.innerHTML = transactions.map((t, i) => `
+                <div class="import-row" data-id="${t.id}">
+                    <input type="date" value="${t.date || ''}" data-field="date">
+                    <input type="text" value="${t.description || ''}" data-field="description" style="font-size:11px;">
+                    <input type="number" value="${t.amount?.toFixed(2) || ''}" data-field="amount" step="0.01">
+                    <select data-field="type">
+                        <option value="debit" ${t.type === 'debit' ? 'selected' : ''}>Debit</option>
+                        <option value="credit" ${t.type === 'credit' ? 'selected' : ''}>Credit</option>
+                    </select>
+                    <button class="delete-btn" onclick="deleteImportRow(${t.id})">×</button>
+                </div>
+            `).join('');
+            
+            showScreen('importConfirm');
+        };
+        
+        const deleteImportRow = (id) => {
+            const row = document.querySelector(`.import-row[data-id="${id}"]`);
+            if (row) {
+                row.remove();
+                importData.transactions = importData.transactions.filter(t => t.id !== id);
+                document.getElementById('importCount').textContent = importData.transactions.length;
+            }
+        };
+        
+        const confirmImport = async () => {
+            // Collect edits from the UI
+            const rows = document.querySelectorAll('#importReviewRows .import-row');
+            const editedTransactions = [];
+            const edits = [];
+            
+            rows.forEach(row => {
+                const id = parseInt(row.dataset.id);
+                const original = importData.transactions.find(t => t.id === id);
+                if (!original) return;
+                
+                const dateInput = row.querySelector('[data-field="date"]').value;
+                const descInput = row.querySelector('[data-field="description"]').value;
+                const amountInput = parseFloat(row.querySelector('[data-field="amount"]').value) || 0;
+                const typeInput = row.querySelector('[data-field="type"]').value;
+                
+                const txn = {
+                    id: id,
+                    date: dateInput,
+                    description: descInput,
+                    amount: amountInput,
+                    type: typeInput,
+                    balance: original.balance,
+                    account: original.account,
+                    category: original.category
+                };
+                editedTransactions.push(txn);
+                
+                // Check if edited
+                if (dateInput !== original.date || 
+                    descInput !== original.description || 
+                    Math.abs(amountInput - original.amount) > 0.01 ||
+                    typeInput !== original.type) {
+                    edits.push({
+                        id: id,
+                        date: dateInput,
+                        description: descInput,
+                        amount: amountInput,
+                        type: typeInput
+                    });
+                }
+            });
+            
+            // Find deleted ones
+            const remainingIds = new Set(editedTransactions.map(t => t.id));
+            const deletedEdits = importData.transactions
+                .filter(t => !remainingIds.has(t.id))
+                .map(t => ({ id: t.id, delete: true }));
+            
+            try {
+                const res = await api('/import/confirm', 'POST', {
+                    transactions: editedTransactions,
+                    edits: [...edits, ...deletedEdits]
+                });
+                
+                alert(res.message || `Saved ${res.saved} transactions!`);
+                
+                if (res.saved > 0) {
+                    showScreen('onboarding3');
+                    loadSuggestedGroups();
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        };
+        
+        const connectQuickBooks = () => {
+            alert('QuickBooks integration coming soon!');
+        };
+        
+        // Onboarding Step 3: Categorization
+        const loadSuggestedGroups = async () => {
+            try {
+                const cats = await api('/categories');
+                categories = cats;
+                
+                const data = await api('/onboarding/suggest-groups');
+                suggestedGroups = data.groups;
+                
+                renderGroups();
+            } catch (err) {
+                document.getElementById('groupsList').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const renderGroups = () => {
+            const container = document.getElementById('groupsList');
+            
+            if (!suggestedGroups.length) {
+                container.innerHTML = '<p style="color:var(--text-muted);text-align:center;">No transaction groups detected. Upload more data or continue.</p>';
+                return;
+            }
+            
+            container.innerHTML = suggestedGroups.map((g, i) => `
+                <div class="group-card" data-index="${i}">
+                    <div class="group-header">
+                        <span class="group-name">${g.suggested_name || 'Unnamed Group'}</span>
+                        <span class="group-badge ${g.stream_type === 'inflow' ? 'badge-inflow' : 'badge-outflow'}">
+                            ${g.stream_type === 'inflow' ? '↑ Income' : '↓ Expense'}
+                        </span>
+                    </div>
+                    <div class="group-stats">
+                        <span>${g.count} transactions</span>
+                        <span>Avg: ${fmt(g.avg_amount)}</span>
+                        <span>${g.frequency}</span>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">
+                        Sample: ${g.sample_description?.substring(0, 50) || '—'}...
+                    </div>
+                    <div class="group-actions">
+                        <button onclick="categorizeGroup(${i})">Categorize</button>
+                        <button onclick="skipGroup(${i})">Skip</button>
+                    </div>
+                </div>
+            `).join('');
+        };
+        
+        let currentGroupForModal = null;
+        
+        const categorizeGroup = (index) => {
+            currentGroupForModal = index;
+            const group = suggestedGroups[index];
+            
+            // Populate category select
+            const catSelect = document.getElementById('categorySelect');
+            const cats = group.stream_type === 'inflow' ? categories.inflow : categories.outflow;
+            catSelect.innerHTML = cats.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+            
+            document.getElementById('groupNameInput').value = group.suggested_name || '';
+            document.getElementById('frequencySelect').value = group.frequency || 'monthly';
+            document.getElementById('allowOffsetsCheck').checked = group.has_mixed_signs || false;
+            
+            document.getElementById('categoryModal').classList.add('active');
+        };
+        
+        const closeCategoryModal = () => {
+            document.getElementById('categoryModal').classList.remove('active');
+            currentGroupForModal = null;
+        };
+        
+        const saveCategoryModal = async () => {
+            if (currentGroupForModal === null) return;
+            
+            const group = suggestedGroups[currentGroupForModal];
+            
+            try {
+                await api('/groups', 'POST', {
+                    name: document.getElementById('groupNameInput').value,
+                    description: group.sample_description || '',
+                    category: document.getElementById('categorySelect').value,
+                    stream_type: group.stream_type,
+                    frequency: document.getElementById('frequencySelect').value,
+                    transaction_ids: group.transaction_ids,
+                    allow_offsets: document.getElementById('allowOffsetsCheck').checked
+                });
+                
+                // Remove from list
+                suggestedGroups.splice(currentGroupForModal, 1);
+                renderGroups();
+                closeCategoryModal();
+            } catch (err) {
+                alert(err.message);
+            }
+        };
+        
+        const skipGroup = (index) => {
+            suggestedGroups.splice(index, 1);
+            renderGroups();
+        };
+        
+        const finishCategorization = () => {
+            showScreen('onboarding4');
+            loadTrends();
+        };
+        
+        // Onboarding Step 4: Trends
+        const loadTrends = async () => {
+            try {
+                const groups = await api('/groups');
+                const container = document.getElementById('trendsContent');
+                
+                if (!groups.length) {
+                    container.innerHTML = '<p style="color:var(--text-muted);">No groups to analyze yet.</p>';
+                    return;
+                }
+                
+                // For each group, get trend
+                let html = '';
+                for (const g of groups.slice(0, 5)) {  // Limit to 5
+                    const trend = await api(`/groups/${g.id}/trend`);
+                    
+                    const trendIcon = trend.trend === 'up' ? '↗️' : trend.trend === 'down' ? '↘️' : '→';
+                    const trendText = trend.trend === 'up' ? `+${trend.pct_per_month}%/mo` : 
+                                     trend.trend === 'down' ? `${trend.pct_per_month}%/mo` : 'Flat';
+                    
+                    html += `
+                        <div class="group-card">
+                            <div class="group-header">
+                                <span class="group-name">${g.name}</span>
+                                <span>${trendIcon} ${trendText}</span>
+                            </div>
+                            <div class="form-group" style="margin-top:12px;margin-bottom:0;">
+                                <label>Expected trend</label>
+                                <select onchange="setTrendSentiment(${g.id}, this.value)">
+                                    <option value="continue" ${trend.trend !== 'flat' ? 'selected' : ''}>Continue current trend</option>
+                                    <option value="flatten" ${trend.trend === 'flat' ? 'selected' : ''}>Flatten out</option>
+                                    <option value="reverse">Reverse direction</option>
+                                </select>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                container.innerHTML = html || '<p style="color:var(--text-muted);">No significant trends detected.</p>';
+            } catch (err) {
+                document.getElementById('trendsContent').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const setTrendSentiment = async (groupId, direction) => {
+            try {
+                await api('/trends/sentiment', 'POST', {
+                    group_id: groupId,
+                    expected_direction: direction,
+                    expected_change_pct: 0
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        
+        const completeOnboarding = async () => {
+            try {
+                await api('/onboarding/complete', 'POST');
+                showScreen('dashboard');
+                loadDashboard();
+            } catch (err) {
+                alert(err.message);
+            }
+        };
+        
+        // Dashboard
+        const loadDashboard = async () => {
+            try {
+                const me = await api('/me');
+                document.getElementById('dashCompanyName').textContent = me.company_name || 'Your Company';
+                document.getElementById('companyLogo').textContent = (me.company_name || 'P')[0].toUpperCase();
+                
+                const summary = await api('/summary');
+                
+                if (summary.error) {
+                    document.getElementById('currentBalance').textContent = '$0';
+                    document.getElementById('statusBadge').textContent = 'NO DATA';
+                    return;
+                }
+                
+                document.getElementById('currentBalance').textContent = fmt(summary.current_balance);
+                document.getElementById('lowPoint').textContent = fmt(summary.low_point?.balance);
+                document.getElementById('lowPointDate').textContent = summary.low_point?.date || '';
+                document.getElementById('highPoint').textContent = fmt(summary.high_point?.balance);
+                document.getElementById('highPointDate').textContent = summary.high_point?.date || '';
+                document.getElementById('monthlyProfitCalc').textContent = fmt(summary.monthly_profit_calculated || summary.monthly_profit || 0);
+                document.getElementById('monthlyProfitAdj').textContent = fmt(summary.monthly_profit_adjusted || summary.monthly_profit || 0);
+                
+                const status = summary.status || 'HEALTHY';
+                const badge = document.getElementById('statusBadge');
+                badge.textContent = status;
+                badge.className = 'balance-status status-' + status.toLowerCase();
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        
+        const showDashboard = () => {
+            showScreen('dashboard');
+            loadDashboard();
+        };
+        
+        // Balance Update
+        const showBalanceUpdate = () => {
+            const currentBal = document.getElementById('currentBalance').textContent.replace(/[$,]/g, '');
+            const newBal = prompt('Enter your current bank balance:', currentBal);
+            if (newBal !== null && newBal !== '') {
+                const amount = parseFloat(newBal.replace(/[$,]/g, ''));
+                if (!isNaN(amount)) {
+                    updateBalance(amount);
+                }
+            }
+        };
+        
+        const updateBalance = async (amount) => {
+            try {
+                await api('/balance', 'POST', { balance: amount });
+                loadDashboard();
+            } catch (err) {
+                alert('Failed to update balance: ' + err.message);
+            }
+        };
+        
+        // Forecast
+        const showForecast = async (days) => {
+            showScreen('forecastView');
+            document.getElementById('forecastTitle').textContent = `${days}-Day Forecast`;
+            document.getElementById('forecastList').innerHTML = '<div class="spinner"></div>';
+            
+            try {
+                const data = await api(`/forecast?horizon_days=${days}`);
+                
+                if (data.error) {
+                    document.getElementById('forecastList').innerHTML = `<div class="message message-error">${data.error}</div>`;
+                    return;
+                }
+                
+                const series = data.baseline_series || [];
+                
+                document.getElementById('forecastList').innerHTML = series.map(week => `
+                    <div class="forecast-week">
+                        <div class="week-date">Week of ${week.week}</div>
+                        <div class="week-flows">
+                            <div class="flow-item">
+                                <div class="flow-label">Inflow</div>
+                                <div class="flow-amount inflow">+${fmt(week.inflow)}</div>
+                            </div>
+                            <div class="flow-item">
+                                <div class="flow-label">Outflow</div>
+                                <div class="flow-amount outflow">-${fmt(week.outflow)}</div>
+                            </div>
+                        </div>
+                        <div class="week-balance">
+                            <div class="flow-label">End Balance</div>
+                            <div class="flow-amount" style="color:${week.balance_end >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                                ${fmt(week.balance_end)}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                document.getElementById('forecastList').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        // Transaction Management
+        let allTransactions = [];
+        let allGroups = [];
+        let selectedTxnIds = new Set();
+        let currentTrendGroupId = null;
+        
+        const showGroups = async () => {
+            showScreen('categoriesScreen');
+            document.getElementById('catList').innerHTML = '<div class="spinner"></div>';
+            document.getElementById('catSearch').value = '';
+            
+            try {
+                allGroups = await api('/groups');
+                renderCategories(allGroups);
+            } catch (err) {
+                document.getElementById('catList').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const renderCategories = (groups) => {
+            document.getElementById('catList').innerHTML = groups.map(g => `
+                <div class="group-card" style="margin-bottom:10px;">
+                    <div class="group-header" style="display:flex;justify-content:space-between;align-items:center;">
+                        <div style="flex:1;" onclick="showCategoryTransactions(${g.id})">
+                            <span class="group-name" style="cursor:pointer;">${g.name}</span>
+                            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${g.transaction_count} transactions · ${g.frequency}</div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <button onclick="openTrendModal(${g.id}, '${g.name}')" style="padding:6px 10px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px;font-size:16px;" title="Set trend">
+                                ${g.trend === 'up' ? '📈' : g.trend === 'down' ? '📉' : '➡️'}
+                            </button>
+                            <span class="group-badge ${g.stream_type === 'inflow' ? 'badge-inflow' : 'badge-outflow'}">
+                                ${g.stream_type === 'inflow' ? '↑' : '↓'} ${fmt(g.net_amount)}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            `).join('') || '<p style="color:var(--text-muted);text-align:center;padding:20px;">No categories yet</p>';
+        };
+        
+        const filterCategories = () => {
+            const query = document.getElementById('catSearch').value.toLowerCase();
+            const filtered = allGroups.filter(g => 
+                g.name.toLowerCase().includes(query) || 
+                (g.description || '').toLowerCase().includes(query)
+            );
+            renderCategories(filtered);
+        };
+        
+        const showCategoryTransactions = async (groupId) => {
+            showScreen('transactionsScreen');
+            document.getElementById('txnSearch').value = '';
+            document.getElementById('txnList').innerHTML = '<div class="spinner"></div>';
+            selectedTxnIds.clear();
+            updateTxnActions();
+            
+            try {
+                const data = await api(`/transactions?per_page=200&group_id=${groupId}`);
+                allTransactions = data.transactions;
+                renderTransactions(allTransactions);
+            } catch (err) {
+                document.getElementById('txnList').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const showTransactions = async () => {
+            showScreen('transactionsScreen');
+            document.getElementById('txnSearch').value = '';
+            document.getElementById('txnList').innerHTML = '<div class="spinner"></div>';
+            selectedTxnIds.clear();
+            updateTxnActions();
+            
+            try {
+                const data = await api('/transactions?per_page=200');
+                allTransactions = data.transactions;
+                await loadGroupsForMapping();
+                renderTransactions(allTransactions);
+            } catch (err) {
+                document.getElementById('txnList').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const loadGroupsForMapping = async () => {
+            try {
+                allGroups = await api('/groups');
+            } catch (err) {
+                console.error('Failed to load groups', err);
+            }
+        };
+        
+        const getGroupName = (groupId) => {
+            if (!groupId) return '<span style="color:var(--text-muted);font-style:italic;">Uncategorized</span>';
+            const group = allGroups.find(g => g.id === groupId);
+            return group ? group.name : 'Unknown';
+        };
+        
+        const renderTransactions = (txns) => {
+            document.getElementById('txnList').innerHTML = txns.map(t => `
+                <div class="group-card" style="padding:10px;margin-bottom:8px;" data-txn-id="${t.id}">
+                    <div style="display:flex;align-items:flex-start;gap:10px;">
+                        <input type="checkbox" class="txn-checkbox" data-id="${t.id}" 
+                               onchange="toggleTxnSelect(${t.id})" ${selectedTxnIds.has(t.id) ? 'checked' : ''}
+                               style="width:18px;height:18px;margin-top:4px;flex-shrink:0;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                                <div style="flex:1;min-width:0;">
+                                    <div style="font-size:12px;color:var(--text-muted);">${t.date}</div>
+                                    <div style="font-size:14px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.description}</div>
+                                    <div style="font-size:11px;margin-top:4px;cursor:pointer;" onclick="showTxnCategoryPicker(${t.id})">${getGroupName(t.group_id)}</div>
+                                </div>
+                                <div style="font-weight:600;font-size:15px;margin-left:10px;white-space:nowrap;color:${t.amount >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                                    ${t.amount >= 0 ? '+' : ''}${fmt(t.amount)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('') || '<p style="color:var(--text-muted);text-align:center;padding:20px;">No transactions</p>';
+        };
+        
+        const filterTransactions = () => {
+            const query = document.getElementById('txnSearch').value.toLowerCase();
+            const filtered = allTransactions.filter(t => 
+                t.description.toLowerCase().includes(query) ||
+                t.date.includes(query) ||
+                String(t.amount).includes(query)
+            );
+            renderTransactions(filtered);
+        };
+        
+        const toggleTxnSelect = (id) => {
+            if (selectedTxnIds.has(id)) {
+                selectedTxnIds.delete(id);
+            } else {
+                selectedTxnIds.add(id);
+            }
+            updateTxnActions();
+        };
+        
+        const toggleSelectAll = () => {
+            const selectAll = document.getElementById('selectAllTxns').checked;
+            const checkboxes = document.querySelectorAll('.txn-checkbox');
+            checkboxes.forEach(cb => {
+                const id = parseInt(cb.dataset.id);
+                if (selectAll) {
+                    selectedTxnIds.add(id);
+                } else {
+                    selectedTxnIds.delete(id);
+                }
+                cb.checked = selectAll;
+            });
+            updateTxnActions();
+        };
+        
+        const updateTxnActions = () => {
+            const count = selectedTxnIds.size;
+            const actionsBar = document.getElementById('txnActions');
+            if (count > 0) {
+                actionsBar.style.display = 'block';
+                document.getElementById('txnSelectedCount').textContent = `${count} selected`;
+            } else {
+                actionsBar.style.display = 'none';
+            }
+        };
+        
+        const showMoveCategoryModal = async () => {
+            document.getElementById('moveCategoryModal').classList.add('active');
+            
+            // Load groups if not loaded
+            if (allGroups.length === 0) {
+                await loadGroupsForMapping();
+            }
+            
+            document.getElementById('moveCategoryList').innerHTML = allGroups.map(g => `
+                <button onclick="moveToCategory(${g.id})" style="width:100%;padding:12px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;text-align:left;font-size:14px;">
+                    <strong>${g.name}</strong>
+                    <span style="color:var(--text-muted);margin-left:8px;">${g.stream_type === 'inflow' ? '↑' : '↓'}</span>
+                </button>
+            `).join('') + `
+                <button onclick="moveToCategory(null)" style="width:100%;padding:12px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;text-align:left;font-size:14px;color:var(--text-muted);">
+                    <em>Remove from category (Uncategorized)</em>
+                </button>
+            `;
+        };
+        
+        const closeMoveCategoryModal = () => {
+            document.getElementById('moveCategoryModal').classList.remove('active');
+        };
+        
+        const moveToCategory = async (groupId) => {
+            closeMoveCategoryModal();
+            
+            const ids = Array.from(selectedTxnIds);
+            try {
+                await api('/transactions/batch-move', 'POST', {
+                    transaction_ids: ids,
+                    group_id: groupId
+                });
+                
+                // Update local data
+                allTransactions.forEach(t => {
+                    if (selectedTxnIds.has(t.id)) {
+                        t.group_id = groupId;
+                    }
+                });
+                
+                selectedTxnIds.clear();
+                document.getElementById('selectAllTxns').checked = false;
+                updateTxnActions();
+                renderTransactions(allTransactions);
+                
+            } catch (err) {
+                alert('Failed to move transactions: ' + err.message);
+            }
+        };
+        
+        const createNewCategoryFromMove = () => {
+            const name = prompt('Enter new category name:');
+            if (!name) return;
+            
+            const streamType = confirm('Is this an INCOME category?\n\nOK = Income (inflow)\nCancel = Expense (outflow)') ? 'inflow' : 'outflow';
+            
+            createCategoryAndMove(name, streamType);
+        };
+        
+        const createCategoryAndMove = async (name, streamType) => {
+            try {
+                const newGroup = await api('/groups', 'POST', {
+                    name: name,
+                    stream_type: streamType,
+                    frequency: 'monthly'
+                });
+                
+                allGroups.push(newGroup);
+                await moveToCategory(newGroup.id);
+                
+            } catch (err) {
+                alert('Failed to create category: ' + err.message);
+            }
+        };
+        
+        const deleteSelectedTxns = async () => {
+            const count = selectedTxnIds.size;
+            if (!confirm(`Delete ${count} transaction(s)? This cannot be undone.`)) return;
+            
+            const ids = Array.from(selectedTxnIds);
+            try {
+                await api('/transactions/batch-delete', 'POST', { transaction_ids: ids });
+                
+                // Remove from local data
+                allTransactions = allTransactions.filter(t => !selectedTxnIds.has(t.id));
+                selectedTxnIds.clear();
+                document.getElementById('selectAllTxns').checked = false;
+                updateTxnActions();
+                renderTransactions(allTransactions);
+                
+            } catch (err) {
+                alert('Failed to delete transactions: ' + err.message);
+            }
+        };
+        
+        const showTxnCategoryPicker = async (txnId) => {
+            // Quick way to change single transaction category
+            selectedTxnIds.clear();
+            selectedTxnIds.add(txnId);
+            showMoveCategoryModal();
+        };
+        
+        // Trend Management
+        const openTrendModal = (groupId, groupName) => {
+            currentTrendGroupId = groupId;
+            document.getElementById('trendCategoryName').textContent = groupName;
+            document.getElementById('trendModal').classList.add('active');
+        };
+        
+        const closeTrendModal = () => {
+            document.getElementById('trendModal').classList.remove('active');
+            currentTrendGroupId = null;
+        };
+        
+        const setTrend = async (trend) => {
+            closeTrendModal();
+            
+            try {
+                await api(`/groups/${currentTrendGroupId}`, 'PATCH', { trend: trend });
+                
+                // Update local data
+                const group = allGroups.find(g => g.id === currentTrendGroupId);
+                if (group) group.trend = trend;
+                
+                renderCategories(allGroups);
+                
+            } catch (err) {
+                alert('Failed to set trend: ' + err.message);
+            }
+        };
+        
+        // Update Data
+        const showUpdateData = () => {
+            showScreen('updateData');
+            document.getElementById('updateDataText').value = '';
+            document.getElementById('updateDataMessage').innerHTML = '';
+        };
+        
+        const processUpdateData = async () => {
+            const data = document.getElementById('updateDataText').value.trim();
+            if (!data) {
+                document.getElementById('updateDataMessage').innerHTML = '<div class="message message-error">Please paste some transaction data</div>';
+                return;
+            }
+            
+            document.getElementById('updateDataMessage').innerHTML = '<div class="spinner" style="margin:auto;"></div>';
+            
+            try {
+                // First analyze the data
+                const analysis = await api('/import/analyze', 'POST', { data });
+                
+                if (analysis.needs_user_input) {
+                    // Show mapping interface
+                    document.getElementById('updateDataMessage').innerHTML = '<div class="message message-error">Could not auto-detect format. Please use the field mapping interface.</div>';
+                    // Store data and show mapping screen
+                    pendingImportData = data;
+                    showMappingInterface(analysis);
+                    return;
+                }
+                
+                // If auto-detected, import directly
+                const result = await api('/import', 'POST', { data });
+                
+                let msg = `<div class="message message-success">✅ Imported ${result.imported.saved} transactions`;
+                if (result.imported.duplicates > 0) {
+                    msg += `<br><span style="font-size:12px;color:var(--text-muted);">${result.imported.duplicates} duplicates skipped</span>`;
+                }
+                msg += '</div>';
+                
+                document.getElementById('updateDataMessage').innerHTML = msg;
+                document.getElementById('updateDataText').value = '';
+                
+                // Refresh dashboard data
+                setTimeout(() => {
+                    loadDashboard();
+                }, 1500);
+                
+            } catch (err) {
+                document.getElementById('updateDataMessage').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const handleUpdateFile = async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                document.getElementById('updateDataText').value = e.target.result;
+                processUpdateData();
+            };
+            reader.readAsText(file);
+        };
+        
+        const showSettings = () => {
+            if (confirm('Log out?')) {
+                localStorage.removeItem('projectr_token');
+                token = null;
+                user = null;
+                showScreen('authScreen');
+            }
+        };
+        
+        // Chat
+        let chatHistory = [];
+        
+        const showChat = () => {
+            showScreen('chatView');
+            document.getElementById('chatInput').focus();
+        };
+        
+        const askQuick = (question) => {
+            document.getElementById('chatInput').value = question;
+            sendQuestion();
+        };
+        
+        const addChatBubble = (text, isUser = false) => {
+            const messages = document.getElementById('chatMessages');
+            
+            // Clear welcome if first message
+            const welcome = messages.querySelector('.chat-welcome');
+            if (welcome) welcome.remove();
+            
+            const bubble = document.createElement('div');
+            bubble.className = `chat-bubble ${isUser ? 'user' : 'bot'}`;
+            
+            // Parse markdown-like formatting
+            let formatted = text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n\n/g, '<br><br>')
+                .replace(/\n/g, '<br>');
+            
+            bubble.innerHTML = formatted;
+            messages.appendChild(bubble);
+            messages.scrollTop = messages.scrollHeight;
+            
+            return bubble;
+        };
+        
+        const showTyping = () => {
+            const messages = document.getElementById('chatMessages');
+            const indicator = document.createElement('div');
+            indicator.className = 'chat-bubble bot typing-indicator';
+            indicator.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+            indicator.id = 'typingIndicator';
+            messages.appendChild(indicator);
+            messages.scrollTop = messages.scrollHeight;
+        };
+        
+        const hideTyping = () => {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) indicator.remove();
+        };
+        
+        const sendQuestion = async () => {
+            const input = document.getElementById('chatInput');
+            const question = input.value.trim();
+            
+            if (!question) return;
+            
+            // Add user bubble
+            addChatBubble(question, true);
+            input.value = '';
+            
+            // Show typing indicator
+            showTyping();
+            
+            try {
+                const response = await api('/ask', 'POST', { question });
+                hideTyping();
+                
+                // Add bot response
+                addChatBubble(response.answer || "I'm not sure how to answer that.");
+                
+                // Store in history
+                chatHistory.push({ question, answer: response.answer });
+            } catch (err) {
+                hideTyping();
+                addChatBubble("Sorry, I couldn't process that question. Please try again.");
+            }
+        };
+        
+        // Init
+        if (token) {
+            api('/me').then(u => {
+                user = u;
+                if (user.onboarding_complete) {
+                    showScreen('dashboard');
+                    loadDashboard();
+                } else {
+                    showScreen('onboarding1');
+                }
+            }).catch(() => {
+                localStorage.removeItem('projectr_token');
+                token = null;
+            });
+        }
+    </script>
+</body>
+</html>
