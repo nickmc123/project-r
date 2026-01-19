@@ -26,6 +26,164 @@ from .services.forecast import compute_forecast, analyze_trends
 # Create tables
 Base.metadata.create_all(bind=engine)
 
+# Seed demo account with fake data
+def seed_demo_account():
+    from .db import SessionLocal
+    import random
+    
+    db = SessionLocal()
+    try:
+        # Check if demo account exists
+        demo = db.query(User).filter(User.email == "demo@projectr.app").first()
+        if demo:
+            return  # Already seeded
+        
+        # Create demo user
+        demo = User(
+            email="demo@projectr.app",
+            password_hash=hash_pw("demo123"),
+            company_name="Acme Coffee Co.",
+            company_website="https://acmecoffee.com",
+            primary_color="#6B4423",
+            current_balance=47850.00
+        )
+        db.add(demo)
+        db.commit()
+        db.refresh(demo)
+        
+        # Create transaction groups
+        groups_data = [
+            {"name": "Daily Sales", "frequency": "daily", "direction": "inflow", "avg_amount": 2500},
+            {"name": "Wholesale Orders", "frequency": "weekly", "direction": "inflow", "avg_amount": 8500},
+            {"name": "Payroll", "frequency": "semi-monthly", "direction": "outflow", "avg_amount": 12000},
+            {"name": "Rent", "frequency": "monthly", "direction": "outflow", "avg_amount": 4500},
+            {"name": "Inventory/COGS", "frequency": "weekly", "direction": "outflow", "avg_amount": 3200},
+            {"name": "Utilities", "frequency": "monthly", "direction": "outflow", "avg_amount": 850},
+            {"name": "Marketing", "frequency": "weekly", "direction": "outflow", "avg_amount": 600},
+        ]
+        
+        groups = {}
+        for g in groups_data:
+            grp = TransactionGroup(
+                user_id=demo.id,
+                name=g["name"],
+                frequency=g["frequency"],
+                direction=g["direction"],
+                avg_amount=g["avg_amount"]
+            )
+            db.add(grp)
+            db.commit()
+            db.refresh(grp)
+            groups[g["name"]] = grp
+        
+        # Generate 90 days of fake transactions
+        today = date.today()
+        transactions = []
+        
+        for days_ago in range(90, -1, -1):
+            txn_date = today - timedelta(days=days_ago)
+            weekday = txn_date.weekday()
+            
+            # Daily sales (Mon-Sat)
+            if weekday < 6:
+                amt = round(random.uniform(2000, 3200), 2)
+                transactions.append(Transaction(
+                    user_id=demo.id,
+                    date=txn_date,
+                    amount=amt,
+                    description=f"Square Deposit - Daily Sales",
+                    group_id=groups["Daily Sales"].id,
+                    is_credit=True
+                ))
+            
+            # Wholesale orders (Wednesdays)
+            if weekday == 2:
+                amt = round(random.uniform(7000, 10500), 2)
+                transactions.append(Transaction(
+                    user_id=demo.id,
+                    date=txn_date,
+                    amount=amt,
+                    description=f"ACH - Whole Foods Distribution",
+                    group_id=groups["Wholesale Orders"].id,
+                    is_credit=True
+                ))
+            
+            # Inventory (Mondays)
+            if weekday == 0:
+                amt = round(random.uniform(2800, 3800), 2)
+                transactions.append(Transaction(
+                    user_id=demo.id,
+                    date=txn_date,
+                    amount=amt,
+                    description=f"Check - Bean Suppliers Inc",
+                    group_id=groups["Inventory/COGS"].id,
+                    is_credit=False
+                ))
+            
+            # Marketing (Fridays)
+            if weekday == 4:
+                amt = round(random.uniform(400, 900), 2)
+                transactions.append(Transaction(
+                    user_id=demo.id,
+                    date=txn_date,
+                    amount=amt,
+                    description=f"ACH - Meta Ads",
+                    group_id=groups["Marketing"].id,
+                    is_credit=False
+                ))
+            
+            # Payroll (1st and 15th)
+            if txn_date.day in [1, 15]:
+                amt = round(random.uniform(11000, 13500), 2)
+                transactions.append(Transaction(
+                    user_id=demo.id,
+                    date=txn_date,
+                    amount=amt,
+                    description=f"ADP Payroll",
+                    group_id=groups["Payroll"].id,
+                    is_credit=False
+                ))
+            
+            # Rent (1st of month)
+            if txn_date.day == 1:
+                transactions.append(Transaction(
+                    user_id=demo.id,
+                    date=txn_date,
+                    amount=4500.00,
+                    description=f"Check - Landlord LLC",
+                    group_id=groups["Rent"].id,
+                    is_credit=False
+                ))
+            
+            # Utilities (15th)
+            if txn_date.day == 15:
+                amt = round(random.uniform(750, 980), 2)
+                transactions.append(Transaction(
+                    user_id=demo.id,
+                    date=txn_date,
+                    amount=amt,
+                    description=f"ACH - Pacific Gas & Electric",
+                    group_id=groups["Utilities"].id,
+                    is_credit=False
+                ))
+        
+        db.add_all(transactions)
+        db.commit()
+        
+        # Update group stats
+        for grp in groups.values():
+            update_group_stats(db, grp.id)
+        
+        print(f"Demo account seeded: demo@projectr.app / demo123")
+    except Exception as e:
+        print(f"Demo seed error: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+# Run seed on startup
+seed_demo_account()
+
 app = FastAPI(title="Project-R", version="1.0", description="Cash Flow Forecasting")
 
 # Mount static files
@@ -700,8 +858,8 @@ async def confirm_import(
         # Check for duplicate
         existing = db.query(Transaction).filter(
             Transaction.user_id == user.id,
-            Transaction.date == txn_date,
-            Transaction.amount == signed_amount,
+            Transaction.date_posted == txn_date.strftime("%Y-%m-%d") if hasattr(txn_date, 'strftime') else str(txn_date),
+            Transaction.amount_signed == signed_amount,
             Transaction.description == txn.get("description", "")
         ).first()
         
@@ -712,12 +870,10 @@ async def confirm_import(
         # Save new transaction
         new_txn = Transaction(
             user_id=user.id,
-            date=txn_date,
-            amount=signed_amount,
+            date_posted=txn_date.strftime("%Y-%m-%d") if hasattr(txn_date, 'strftime') else str(txn_date),
+            amount_signed=signed_amount,
             description=txn.get("description", ""),
-            balance=txn.get("balance"),
-            account=txn.get("account"),
-            category=txn.get("category")
+            balance=txn.get("balance")
         )
         db.add(new_txn)
         saved += 1
