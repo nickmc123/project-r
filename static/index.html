@@ -399,7 +399,12 @@
         .action-icon { font-size: 28px; margin-bottom: 8px; }
         .action-label { font-size: 13px; font-weight: 600; }
         
-        /* Forecast View */
+        /* Forecast View - Casablanca Style */
+        #forecastView {
+            background: linear-gradient(180deg, #FF8A65 0%, #FFA726 50%, #FFB74D 100%);
+            min-height: 100vh;
+        }
+        
         .forecast-header {
             display: flex;
             align-items: center;
@@ -407,38 +412,41 @@
         }
         
         .back-btn {
-            background: none;
+            background: rgba(255,255,255,0.2);
             border: none;
-            color: var(--text);
-            font-size: 24px;
+            color: #333;
+            font-size: 16px;
+            font-weight: 600;
             cursor: pointer;
-            padding: 8px;
-            margin-right: 8px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            margin-right: 12px;
         }
+        .back-btn:hover { background: rgba(255,255,255,0.3); }
         
         /* Projection Modal Buttons */
         .proj-btn {
             flex: 1;
-            padding: 12px 8px;
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            color: var(--text);
-            font-size: 14px;
-            font-weight: 500;
+            padding: 14px 10px;
+            background: linear-gradient(180deg, #FFB74D 0%, #FFA726 100%);
+            border: none;
+            border-radius: 10px;
+            color: #333;
+            font-size: 16px;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
         }
-        .proj-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
+        .proj-btn:hover { background: linear-gradient(180deg, #FFC107 0%, #FFB74D 100%); transform: scale(1.02); }
         .proj-btn:active { transform: scale(0.95); }
         
         /* Toggle Tabs */
         .toggle-tabs {
             display: flex;
-            background: var(--card-bg);
+            background: rgba(255,255,255,0.2);
             border-radius: 10px;
             padding: 4px;
-            border: 1px solid var(--border);
+            margin-bottom: 16px;
         }
         .toggle-tab {
             flex: 1;
@@ -446,29 +454,167 @@
             background: transparent;
             border: none;
             border-radius: 8px;
-            color: var(--text-muted);
+            color: #333;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
         }
         .toggle-tab.active {
-            background: var(--primary);
-            color: white;
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            font-weight: 600;
         }
         
         .forecast-title {
             font-size: 20px;
             font-weight: 700;
+            color: #333;
         }
+        
+        /* Summary Boxes at Top */
+        .forecast-summary {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .summary-box {
+            flex: 1;
+            background: rgba(255,255,255,0.25);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+        .summary-label {
+            font-size: 13px;
+            color: #555;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        .summary-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #333;
+        }
+        .summary-value.low { color: #d32f2f; }
+        .summary-value.high { color: #2e7d32; }
         
         .forecast-list {
             flex: 1;
             overflow-y: auto;
         }
         
+        /* Period Cards - Casablanca Style */
+        .forecast-card {
+            background: rgba(255,255,255,0.15);
+            border-radius: 12px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 16px;
+            background: rgba(255,255,255,0.1);
+            border-bottom: 1px solid rgba(0,0,0,0.08);
+        }
+        .card-date {
+            font-size: 16px;
+            font-weight: 700;
+            color: #333;
+        }
+        .card-balance {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2e7d32;
+        }
+        
+        .card-section {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        .card-section:last-child { border-bottom: none; }
+        
+        .section-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .section-title.credits { color: #2e7d32; }
+        .section-title.debits { color: #c62828; }
+        .section-title.special { color: #e65100; }
+        
+        .section-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+        }
+        .item-name {
+            font-size: 14px;
+            color: #333;
+        }
+        .item-amount {
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .item-amount.credit { color: #2e7d32; }
+        .item-amount.debit { color: #c62828; }
+        
+        .section-total {
+            display: flex;
+            justify-content: space-between;
+            padding-top: 8px;
+            margin-top: 6px;
+            border-top: 1px dashed rgba(0,0,0,0.1);
+        }
+        .total-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+        }
+        .total-amount {
+            font-size: 14px;
+            font-weight: 700;
+        }
+        .total-amount.credit { color: #2e7d32; }
+        .total-amount.debit { color: #c62828; }
+        
+        /* Low/High Footer */
+        .card-footer {
+            display: flex;
+            padding: 0;
+            background: rgba(0,0,0,0.05);
+        }
+        .footer-box {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+        }
+        .footer-box:first-child { border-right: 1px solid rgba(0,0,0,0.08); }
+        .footer-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #666;
+        }
+        .footer-value {
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .footer-value.low { color: #d32f2f; }
+        .footer-value.high { color: #2e7d32; }
+        
+        /* Legacy styles for backward compat */
         .forecast-week {
-            background: var(--card-bg);
+            background: rgba(255,255,255,0.15);
             border-radius: 12px;
             padding: 16px;
             margin-bottom: 12px;
@@ -477,6 +623,7 @@
         .week-date {
             font-weight: 600;
             margin-bottom: 12px;
+            color: #333;
         }
         
         .week-flows {
@@ -491,13 +638,14 @@
         
         .flow-label {
             font-size: 11px;
-            color: var(--text-muted);
+            color: #555;
             text-transform: uppercase;
         }
         
         .flow-amount {
             font-size: 16px;
             font-weight: 600;
+            color: #333;
         }
         
         .flow-amount.inflow { color: var(--success); }
@@ -1424,38 +1572,38 @@
             </div>
         </div>
         
-        <!-- Projection Modal -->
+        <!-- Projection Modal - Casablanca Style -->
         <div id="projectionModal" class="modal" style="display:none;">
-            <div class="modal-content" style="max-width:350px;">
-                <div class="modal-header">
-                    <h3>Cash Projection</h3>
-                    <button class="modal-close" onclick="closeProjectionModal()">×</button>
-                </div>
-                <div style="padding:16px;">
-                    <div style="margin-bottom:16px;">
-                        <h4 style="color:var(--text-muted);font-size:12px;margin-bottom:10px;text-transform:uppercase;">Daily View</h4>
-                        <div style="display:flex;gap:8px;">
-                            <button class="proj-btn" onclick="showForecast('daily', 15)">15 Days</button>
-                            <button class="proj-btn" onclick="showForecast('daily', 30)">30 Days</button>
-                            <button class="proj-btn" onclick="showForecast('daily', 45)">45 Days</button>
+            <div class="modal-content" style="max-width:340px;background:linear-gradient(180deg, rgba(255,183,77,0.95) 0%, rgba(255,167,38,0.95) 100%);border:none;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+                <div style="padding:20px;">
+                    <div style="text-align:center;margin-bottom:20px;">
+                        <span style="font-size:24px;">📈</span>
+                        <span style="font-size:20px;font-weight:700;color:#333;margin-left:8px;">Cash Projection</span>
+                    </div>
+                    <div style="margin-bottom:14px;">
+                        <div style="display:flex;align-items:center;gap:16px;">
+                            <span style="font-size:14px;font-weight:600;color:#555;width:60px;">Days</span>
+                            <div style="display:flex;gap:8px;flex:1;">
+                                <button class="proj-btn" onclick="showForecast('daily', 15)">15</button>
+                                <button class="proj-btn" onclick="showForecast('daily', 30)">30</button>
+                                <button class="proj-btn" onclick="showForecast('daily', 45)">45</button>
+                            </div>
                         </div>
                     </div>
-                    <div style="margin-bottom:16px;">
-                        <h4 style="color:var(--text-muted);font-size:12px;margin-bottom:10px;text-transform:uppercase;">Weekly View</h4>
-                        <div style="display:flex;gap:8px;">
-                            <button class="proj-btn" onclick="showForecast('weekly', 4)">4 Weeks</button>
-                            <button class="proj-btn" onclick="showForecast('weekly', 8)">8 Weeks</button>
-                            <button class="proj-btn" onclick="showForecast('weekly', 12)">12 Weeks</button>
+                    <div style="margin-bottom:14px;">
+                        <div style="display:flex;align-items:center;gap:16px;">
+                            <span style="font-size:14px;font-weight:600;color:#555;width:60px;">Weeks</span>
+                            <div style="display:flex;gap:8px;flex:1;">
+                                <button class="proj-btn" onclick="showForecast('weekly', 4)">4</button>
+                                <button class="proj-btn" onclick="showForecast('weekly', 8)">8</button>
+                                <button class="proj-btn" onclick="showForecast('weekly', 12)">12</button>
+                                <button class="proj-btn" onclick="showForecast('monthly', 6)">6</button>
+                                <button class="proj-btn" onclick="showForecast('monthly', 9)">9</button>
+                                <button class="proj-btn" onclick="showForecast('monthly', 12)">12</button>
+                            </div>
                         </div>
                     </div>
-                    <div>
-                        <h4 style="color:var(--text-muted);font-size:12px;margin-bottom:10px;text-transform:uppercase;">Monthly View</h4>
-                        <div style="display:flex;gap:8px;">
-                            <button class="proj-btn" onclick="showForecast('monthly', 6)">6 Months</button>
-                            <button class="proj-btn" onclick="showForecast('monthly', 9)">9 Months</button>
-                            <button class="proj-btn" onclick="showForecast('monthly', 12)">12 Months</button>
-                        </div>
-                    </div>
+                    <button onclick="closeProjectionModal()" style="width:100%;padding:14px;background:rgba(0,0,0,0.1);border:none;border-radius:10px;color:#555;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px;">Cancel</button>
                 </div>
             </div>
         </div>
@@ -1520,16 +1668,14 @@
     <!-- Forecast View -->
     <div id="forecastView" class="screen">
         <div class="forecast-header">
-            <button class="back-btn" onclick="showDashboard()">←</button>
+            <button class="back-btn" onclick="showDashboard()">← Back</button>
             <h2 class="forecast-title" id="forecastTitle">Forecast</h2>
         </div>
         
         <!-- Toggle between Calculated and Adjusted -->
-        <div style="padding:0 16px 12px;">
-            <div class="toggle-tabs" id="forecastToggle">
-                <button class="toggle-tab active" data-view="calculated" onclick="toggleForecastView('calculated')">Calculated</button>
-                <button class="toggle-tab" data-view="adjusted" onclick="toggleForecastView('adjusted')">Adjusted</button>
-            </div>
+        <div class="toggle-tabs" id="forecastToggle" style="margin-bottom:16px;">
+            <button class="toggle-tab active" data-view="calculated" onclick="toggleForecastView('calculated')">Calculated</button>
+            <button class="toggle-tab" data-view="adjusted" onclick="toggleForecastView('adjusted')">Adjusted</button>
         </div>
         
         <div class="forecast-list" id="forecastList"></div>
@@ -2631,59 +2777,107 @@
                 ? (currentForecastData.adjusted_series || currentForecastData.baseline_series || [])
                 : (currentForecastData.baseline_series || []);
             
-            const periodLabel = currentForecastType === 'daily' ? 'day' : 
-                               currentForecastType === 'weekly' ? 'week' : 'month';
+            // Calculate overall low/high points
+            let lowPoint = Infinity, highPoint = -Infinity;
+            series.forEach(item => {
+                const bal = item.balance_end || 0;
+                const low = item.balance_low !== undefined ? item.balance_low : bal;
+                const high = item.balance_high !== undefined ? item.balance_high : bal;
+                if (low < lowPoint) lowPoint = low;
+                if (high > highPoint) highPoint = high;
+            });
             
-            if (currentForecastType === 'daily') {
-                // Daily view - show each day
-                document.getElementById('forecastList').innerHTML = series.map((item, idx) => {
-                    // For daily, we need to calculate per-day data from weekly aggregates
-                    // For now show weekly data with day labels
-                    return `
-                    <div class="forecast-week">
-                        <div class="week-date">${item.week || item.date || `Day ${idx + 1}`}</div>
-                        <div class="week-flows">
-                            <div class="flow-item">
-                                <div class="flow-label">Inflow</div>
-                                <div class="flow-amount inflow">+${fmt(item.inflow)}</div>
-                            </div>
-                            <div class="flow-item">
-                                <div class="flow-label">Outflow</div>
-                                <div class="flow-amount outflow">-${fmt(item.outflow)}</div>
+            // Format for display
+            const fmtK = (n) => {
+                if (Math.abs(n) >= 1000) return '$' + Math.round(n/1000) + 'K';
+                return '$' + Math.round(n);
+            };
+            
+            // Build the summary + cards
+            let html = `
+                <div class="forecast-summary">
+                    <div class="summary-box">
+                        <div class="summary-label">Low Point</div>
+                        <div class="summary-value low">${fmtK(lowPoint)}</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-label">High Point</div>
+                        <div class="summary-value high">${fmtK(highPoint)}</div>
+                    </div>
+                </div>
+            `;
+            
+            series.forEach((item, idx) => {
+                const dateLabel = currentForecastType === 'weekly' 
+                    ? `Week of ${item.week}` 
+                    : currentForecastType === 'monthly' 
+                        ? item.month 
+                        : item.date || item.week || `Day ${idx + 1}`;
+                
+                const balEnd = item.balance_end || 0;
+                const low = item.balance_low !== undefined ? item.balance_low : balEnd;
+                const high = item.balance_high !== undefined ? item.balance_high : balEnd;
+                
+                html += `
+                    <div class="forecast-card">
+                        <div class="card-header">
+                            <div class="card-date">${dateLabel}</div>
+                            <div class="card-balance" style="color:${balEnd >= 0 ? '#2e7d32' : '#c62828'}">$${Math.abs(balEnd).toLocaleString()}</div>
+                        </div>
+                        
+                        <div class="card-section">
+                            <div class="section-title credits">💵 CREDITS</div>
+                            ${item.inflow_categories ? item.inflow_categories.map(cat => `
+                                <div class="section-item">
+                                    <span class="item-name">${cat.name}</span>
+                                    <span class="item-amount credit">+$${Math.abs(cat.amount).toLocaleString()}</span>
+                                </div>
+                            `).join('') : `
+                                <div class="section-item">
+                                    <span class="item-name">Revenue</span>
+                                    <span class="item-amount credit">+$${Math.abs(item.inflow || 0).toLocaleString()}</span>
+                                </div>
+                            `}
+                            <div class="section-total">
+                                <span class="total-label">Total Credits</span>
+                                <span class="total-amount credit">+$${Math.abs(item.inflow || 0).toLocaleString()}</span>
                             </div>
                         </div>
-                        <div class="week-balance">
-                            <div class="flow-label">End Balance</div>
-                            <div class="flow-amount" style="color:${item.balance_end >= 0 ? 'var(--success)' : 'var(--danger)'}">
-                                ${fmt(item.balance_end)}
+                        
+                        <div class="card-section">
+                            <div class="section-title debits">🏪 EXPENSES</div>
+                            ${item.outflow_categories ? item.outflow_categories.map(cat => `
+                                <div class="section-item">
+                                    <span class="item-name">${cat.name}</span>
+                                    <span class="item-amount debit">-$${Math.abs(cat.amount).toLocaleString()}</span>
+                                </div>
+                            `).join('') : `
+                                <div class="section-item">
+                                    <span class="item-name">Operating Expenses</span>
+                                    <span class="item-amount debit">-$${Math.abs(item.outflow || 0).toLocaleString()}</span>
+                                </div>
+                            `}
+                            <div class="section-total">
+                                <span class="total-label">Total Expenses</span>
+                                <span class="total-amount debit">-$${Math.abs(item.outflow || 0).toLocaleString()}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="card-footer">
+                            <div class="footer-box">
+                                <div class="footer-label">LOW</div>
+                                <div class="footer-value low">${fmtK(low)}</div>
+                            </div>
+                            <div class="footer-box">
+                                <div class="footer-label">HIGH</div>
+                                <div class="footer-value high">${fmtK(high)}</div>
                             </div>
                         </div>
                     </div>
-                `}).join('');
-            } else {
-                // Weekly/Monthly view
-                document.getElementById('forecastList').innerHTML = series.map(item => `
-                    <div class="forecast-week">
-                        <div class="week-date">${currentForecastType === 'weekly' ? 'Week of ' : ''}${item.week || item.month}</div>
-                        <div class="week-flows">
-                            <div class="flow-item">
-                                <div class="flow-label">Inflow</div>
-                                <div class="flow-amount inflow">+${fmt(item.inflow)}</div>
-                            </div>
-                            <div class="flow-item">
-                                <div class="flow-label">Outflow</div>
-                                <div class="flow-amount outflow">-${fmt(item.outflow)}</div>
-                            </div>
-                        </div>
-                        <div class="week-balance">
-                            <div class="flow-label">End Balance</div>
-                            <div class="flow-amount" style="color:${item.balance_end >= 0 ? 'var(--success)' : 'var(--danger)'}">
-                                ${fmt(item.balance_end)}
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-            }
+                `;
+            });
+            
+            document.getElementById('forecastList').innerHTML = html;
         };
         
         // Transaction Management
