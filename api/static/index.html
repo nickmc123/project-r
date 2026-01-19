@@ -869,6 +869,110 @@
             0%, 60%, 100% { transform: translateY(0); }
             30% { transform: translateY(-8px); }
         }
+        
+        /* Category Detail Styles */
+        .period-toggle-btn {
+            flex: 1;
+            padding: 10px 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .period-toggle-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .trend-dir-btn {
+            flex: 1;
+            padding: 10px 12px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .trend-dir-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .period-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .period-header {
+            padding: 12px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .period-header:hover {
+            background: var(--bg-secondary);
+        }
+        .period-txns {
+            display: none;
+            border-top: 1px solid var(--border);
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .period-txns.expanded {
+            display: block;
+        }
+        .period-txn-item {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+        .period-txn-item:last-child {
+            border-bottom: none;
+        }
+        
+        .trend-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .trend-up {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--success);
+        }
+        .trend-down {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+        }
+        .trend-flat {
+            background: rgba(148, 163, 184, 0.15);
+            color: var(--text-muted);
+        }
+        
+        .correlation-item {
+            background: var(--bg-secondary);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .correlation-item:last-child {
+            margin-bottom: 0;
+        }
     </style>
 </head>
 <body>
@@ -1403,6 +1507,40 @@
         <div id="catList" style="padding:0 16px;overflow-y:auto;"></div>
     </div>
     
+    <!-- Category Detail Screen -->
+    <div id="categoryDetailScreen" class="screen">
+        <div class="forecast-header">
+            <button class="back-btn" onclick="showGroups()">←</button>
+            <h2 class="forecast-title" id="catDetailTitle">Category</h2>
+        </div>
+        
+        <div style="padding:0 16px;overflow-y:auto;">
+            <!-- Trend Summary Card -->
+            <div id="catTrendCard" class="summary-card" style="margin-bottom:16px;"></div>
+            
+            <!-- Period Toggle -->
+            <div style="display:flex;gap:8px;margin-bottom:16px;">
+                <button id="weeklyBtn" onclick="setCategoryPeriod('week')" class="period-toggle-btn active">Weekly</button>
+                <button id="monthlyBtn" onclick="setCategoryPeriod('month')" class="period-toggle-btn">Monthly</button>
+            </div>
+            
+            <!-- Period Breakdown -->
+            <div id="catPeriodList" style="margin-bottom:20px;"></div>
+            
+            <!-- Correlations Section -->
+            <div class="summary-card" style="margin-bottom:20px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <h3 style="font-size:16px;font-weight:600;">Correlations</h3>
+                    <button onclick="openAddCorrelationModal()" style="padding:6px 12px;background:var(--primary);color:white;border:none;border-radius:6px;font-size:13px;">+ Add</button>
+                </div>
+                <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
+                    💡 <strong>Tip:</strong> Always use the category that changes first. Example: Sales go up → then Inventory follows → then Payroll follows.
+                </p>
+                <div id="catCorrelationsList"></div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Move to Category Modal -->
     <div class="modal-overlay" id="moveCategoryModal">
         <div class="modal">
@@ -1422,24 +1560,128 @@
     
     <!-- Trend Adjustment Modal -->
     <div class="modal-overlay" id="trendModal">
-        <div class="modal">
+        <div class="modal" style="max-width:400px;">
             <div class="modal-header">
-                <span class="modal-title">Set Trend Direction</span>
+                <span class="modal-title">Adjust Trend</span>
                 <button class="modal-close" onclick="closeTrendModal()">×</button>
             </div>
             <div class="modal-body">
-                <p id="trendCategoryName" style="font-weight:600;margin-bottom:16px;"></p>
-                <p style="margin-bottom:16px;color:var(--text-muted);font-size:14px;">How do you expect this category to trend?</p>
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                    <button onclick="setTrend('up')" class="trend-btn" style="padding:14px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;text-align:left;font-size:15px;">
-                        <span style="color:var(--success);font-size:18px;">📈</span> <strong>Increasing</strong> <span style="color:var(--text-muted);font-size:13px;">- expect growth</span>
-                    </button>
-                    <button onclick="setTrend('flat')" class="trend-btn" style="padding:14px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;text-align:left;font-size:15px;">
-                        <span style="font-size:18px;">➡️</span> <strong>Flat</strong> <span style="color:var(--text-muted);font-size:13px;">- staying steady</span>
-                    </button>
-                    <button onclick="setTrend('down')" class="trend-btn" style="padding:14px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;text-align:left;font-size:15px;">
-                        <span style="color:var(--danger);font-size:18px;">📉</span> <strong>Decreasing</strong> <span style="color:var(--text-muted);font-size:13px;">- expect decline</span>
-                    </button>
+                <p id="trendCategoryName" style="font-weight:600;margin-bottom:8px;"></p>
+                <p id="trendCalculated" style="font-size:13px;color:var(--text-muted);margin-bottom:16px;"></p>
+                
+                <!-- Trend Direction -->
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label style="font-size:14px;font-weight:500;margin-bottom:8px;display:block;">Direction</label>
+                    <div style="display:flex;gap:8px;">
+                        <button type="button" onclick="selectTrendDirection('up')" id="trendUpBtn" class="trend-dir-btn">📈 Up</button>
+                        <button type="button" onclick="selectTrendDirection('flat')" id="trendFlatBtn" class="trend-dir-btn">➡️ Flat</button>
+                        <button type="button" onclick="selectTrendDirection('down')" id="trendDownBtn" class="trend-dir-btn">📉 Down</button>
+                    </div>
+                </div>
+                
+                <!-- Trend Percentage -->
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label style="font-size:14px;font-weight:500;margin-bottom:8px;display:block;">Rate of Change</label>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="number" id="trendPercent" style="width:80px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:14px;" value="0" step="0.5">
+                        <span>% per</span>
+                        <select id="trendPeriod" style="padding:10px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                            <option value="week">week</option>
+                            <option value="month" selected>month</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Duration -->
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label style="font-size:14px;font-weight:500;margin-bottom:8px;display:block;">Duration</label>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="number" id="trendDuration" style="width:80px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:14px;" value="" placeholder="∞">
+                        <span>days, then</span>
+                        <select id="trendThen" style="padding:10px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                            <option value="">continue</option>
+                            <option value="flat">flatten</option>
+                            <option value="up">trend up</option>
+                            <option value="down">trend down</option>
+                        </select>
+                    </div>
+                    <div id="trendThenPercentRow" style="display:none;margin-top:8px;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span>at</span>
+                            <input type="number" id="trendThenPercent" style="width:80px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:14px;" value="0" step="0.5">
+                            <span>% per month</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display:flex;gap:10px;margin-top:20px;">
+                    <button onclick="closeTrendModal()" style="flex:1;padding:12px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;">Cancel</button>
+                    <button onclick="saveTrendAdjustment()" style="flex:1;padding:12px;background:var(--primary);color:white;border:none;border-radius:8px;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Correlation Modal -->
+    <div class="modal-overlay" id="correlationModal">
+        <div class="modal" style="max-width:400px;">
+            <div class="modal-header">
+                <span class="modal-title">Add Correlation</span>
+                <button class="modal-close" onclick="closeCorrelationModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:14px;margin-bottom:16px;">
+                    When <strong id="corrSourceName">this category</strong> goes <strong>up</strong>...
+                </p>
+                
+                <!-- Target Category -->
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label style="font-size:14px;font-weight:500;margin-bottom:8px;display:block;">Then this category</label>
+                    <select id="corrTargetGroup" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                    </select>
+                </div>
+                
+                <!-- Direction -->
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label style="font-size:14px;font-weight:500;margin-bottom:8px;display:block;">Goes</label>
+                    <div style="display:flex;gap:8px;">
+                        <button type="button" onclick="selectCorrDirection('same')" id="corrSameBtn" class="trend-dir-btn active">Same direction</button>
+                        <button type="button" onclick="selectCorrDirection('opposite')" id="corrOppositeBtn" class="trend-dir-btn">Opposite</button>
+                    </div>
+                </div>
+                
+                <!-- Percentage -->
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label style="font-size:14px;font-weight:500;margin-bottom:8px;display:block;">By what percentage of the change?</label>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="number" id="corrPercent" style="width:80px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:14px;" value="50">
+                        <span>%</span>
+                    </div>
+                    <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Example: If source goes up 20% and you set 50%, target will go up 10%</p>
+                </div>
+                
+                <!-- Delay -->
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label style="font-size:14px;font-weight:500;margin-bottom:8px;display:block;">Over the next</label>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="number" id="corrDelay" style="width:60px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:14px;" value="0">
+                        <select id="corrDelayUnit" style="padding:10px;border:1px solid var(--border);border-radius:6px;font-size:14px;">
+                            <option value="days">days</option>
+                            <option value="weeks" selected>weeks</option>
+                            <option value="months">months</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div style="background:var(--bg-secondary);padding:12px;border-radius:8px;margin-bottom:16px;">
+                    <p style="font-size:13px;color:var(--text-muted);">
+                        <strong>Example:</strong> Sales go up 20% → Inventory goes up by 10% over 2 weeks → Payroll goes up 5% over 2 months
+                    </p>
+                </div>
+                
+                <div style="display:flex;gap:10px;">
+                    <button onclick="closeCorrelationModal()" style="flex:1;padding:12px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;">Cancel</button>
+                    <button onclick="saveCorrelation()" style="flex:1;padding:12px;background:var(--primary);color:white;border:none;border-radius:8px;">Save</button>
                 </div>
             </div>
         </div>
@@ -2286,24 +2528,32 @@
         };
         
         const renderCategories = (groups) => {
-            document.getElementById('catList').innerHTML = groups.map(g => `
+            document.getElementById('catList').innerHTML = groups.map(g => {
+                // Determine trend display
+                const trendPct = g.adjusted_trend_percent !== null ? g.adjusted_trend_percent : (g.calculated_trend_percent || 0);
+                const trendDir = trendPct > 2 ? 'up' : trendPct < -2 ? 'down' : 'flat';
+                const trendIcon = trendDir === 'up' ? '📈' : trendDir === 'down' ? '📉' : '➡️';
+                const trendClass = trendDir === 'up' ? 'trend-up' : trendDir === 'down' ? 'trend-down' : 'trend-flat';
+                const trendLabel = trendPct !== 0 ? `${trendPct > 0 ? '+' : ''}${trendPct.toFixed(1)}%` : 'Flat';
+                
+                return `
                 <div class="group-card" style="margin-bottom:10px;">
                     <div class="group-header" style="display:flex;justify-content:space-between;align-items:center;">
-                        <div style="flex:1;" onclick="showCategoryTransactions(${g.id})">
-                            <span class="group-name" style="cursor:pointer;">${g.name}</span>
+                        <div style="flex:1;cursor:pointer;" onclick="showCategoryDetail(${g.id})">
+                            <span class="group-name">${g.name}</span>
                             <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${g.transaction_count} transactions · ${g.frequency}</div>
                         </div>
-                        <div style="display:flex;align-items:center;gap:10px;">
-                            <button onclick="openTrendModal(${g.id}, '${g.name}')" style="padding:6px 10px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px;font-size:16px;" title="Set trend">
-                                ${g.trend === 'up' ? '📈' : g.trend === 'down' ? '📉' : '➡️'}
-                            </button>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span class="trend-indicator ${trendClass}" onclick="showCategoryDetail(${g.id})" style="cursor:pointer;">
+                                ${trendIcon} ${trendLabel}
+                            </span>
                             <span class="group-badge ${g.stream_type === 'inflow' ? 'badge-inflow' : 'badge-outflow'}">
                                 ${g.stream_type === 'inflow' ? '↑' : '↓'} ${fmt(g.net_amount)}
                             </span>
                         </div>
                     </div>
                 </div>
-            `).join('') || '<p style="color:var(--text-muted);text-align:center;padding:20px;">No categories yet</p>';
+            `}).join('') || '<p style="color:var(--text-muted);text-align:center;padding:20px;">No categories yet</p>';
         };
         
         const filterCategories = () => {
@@ -2315,6 +2565,323 @@
             renderCategories(filtered);
         };
         
+        // ============ CATEGORY DETAIL ============
+        let currentCategoryId = null;
+        let currentCategoryPeriod = 'week';
+        let currentCategoryData = null;
+        let currentTrendDirection = 'flat';
+        let currentCorrDirection = 'same';
+        
+        const showCategoryDetail = async (groupId) => {
+            currentCategoryId = groupId;
+            showScreen('categoryDetailScreen');
+            document.getElementById('catTrendCard').innerHTML = '<div class="spinner"></div>';
+            document.getElementById('catPeriodList').innerHTML = '';
+            document.getElementById('catCorrelationsList').innerHTML = '';
+            
+            // Reset period toggle
+            document.getElementById('weeklyBtn').classList.add('active');
+            document.getElementById('monthlyBtn').classList.remove('active');
+            currentCategoryPeriod = 'week';
+            
+            await loadCategoryDetail();
+        };
+        
+        const loadCategoryDetail = async () => {
+            try {
+                // Load trend detail
+                const data = await api(`/groups/${currentCategoryId}/trend-detail?period=${currentCategoryPeriod}`);
+                currentCategoryData = data;
+                
+                document.getElementById('catDetailTitle').textContent = data.group.name;
+                
+                // Render trend card
+                const g = data.group;
+                const effectivePct = g.adjusted_trend_percent !== null ? g.adjusted_trend_percent : g.calculated_trend_percent;
+                const trendDir = effectivePct > 2 ? 'up' : effectivePct < -2 ? 'down' : 'flat';
+                const trendClass = trendDir === 'up' ? 'trend-up' : trendDir === 'down' ? 'trend-down' : 'trend-flat';
+                const trendIcon = trendDir === 'up' ? '📈' : trendDir === 'down' ? '📉' : '➡️';
+                
+                let trendHtml = `
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                        <h3 style="font-size:16px;font-weight:600;">Trend Analysis</h3>
+                        <button onclick="openFullTrendModal()" style="padding:6px 12px;background:var(--primary);color:white;border:none;border-radius:6px;font-size:13px;">Adjust</button>
+                    </div>
+                    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Calculated Trend</div>
+                            <span class="trend-indicator ${g.calculated_trend_percent > 2 ? 'trend-up' : g.calculated_trend_percent < -2 ? 'trend-down' : 'trend-flat'}">
+                                ${g.calculated_trend_percent > 0 ? '+' : ''}${g.calculated_trend_percent.toFixed(1)}%/mo
+                            </span>
+                        </div>
+                `;
+                
+                if (g.adjusted_trend_percent !== null) {
+                    trendHtml += `
+                        <div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Your Adjustment</div>
+                            <span class="trend-indicator ${trendClass}">
+                                ${trendIcon} ${g.adjusted_trend_percent > 0 ? '+' : ''}${g.adjusted_trend_percent.toFixed(1)}%/${g.trend_period || 'month'}
+                            </span>
+                        </div>
+                    `;
+                }
+                
+                if (g.trend_duration_days) {
+                    trendHtml += `
+                        <div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Duration</div>
+                            <span style="font-size:14px;">${g.trend_duration_days} days${g.trend_then ? ', then ' + g.trend_then : ''}</span>
+                        </div>
+                    `;
+                }
+                
+                trendHtml += '</div>';
+                document.getElementById('catTrendCard').innerHTML = trendHtml;
+                
+                // Render period breakdown
+                renderPeriodBreakdown(data.periods);
+                
+                // Load correlations
+                await loadCorrelations();
+                
+            } catch (err) {
+                document.getElementById('catTrendCard').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const renderPeriodBreakdown = (periods) => {
+            if (!periods.length) {
+                document.getElementById('catPeriodList').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No transactions in this period</p>';
+                return;
+            }
+            
+            document.getElementById('catPeriodList').innerHTML = periods.map((p, idx) => `
+                <div class="period-card">
+                    <div class="period-header" onclick="togglePeriodTxns(${idx})">
+                        <div>
+                            <div style="font-weight:600;">${p.period}</div>
+                            <div style="font-size:12px;color:var(--text-muted);">${p.count} transactions</div>
+                        </div>
+                        <span class="amount-pill ${p.total >= 0 ? 'positive' : 'negative'}" style="font-size:14px;">
+                            $ ${Math.abs(p.total).toLocaleString('en-US', {minimumFractionDigits: 2})}
+                        </span>
+                    </div>
+                    <div class="period-txns" id="periodTxns_${idx}">
+                        ${p.transactions.map(t => `
+                            <div class="period-txn-item">
+                                <div>
+                                    <div>${t.date}</div>
+                                    <div style="color:var(--text-muted);font-size:12px;">${t.description.substring(0, 40)}${t.description.length > 40 ? '...' : ''}</div>
+                                </div>
+                                <span class="amount-pill ${t.amount >= 0 ? 'positive' : 'negative'}" style="font-size:12px;">
+                                    $ ${Math.abs(t.amount).toLocaleString('en-US', {minimumFractionDigits: 2})}
+                                </span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        };
+        
+        const togglePeriodTxns = (idx) => {
+            const el = document.getElementById(`periodTxns_${idx}`);
+            el.classList.toggle('expanded');
+        };
+        
+        const setCategoryPeriod = async (period) => {
+            currentCategoryPeriod = period;
+            document.getElementById('weeklyBtn').classList.toggle('active', period === 'week');
+            document.getElementById('monthlyBtn').classList.toggle('active', period === 'month');
+            await loadCategoryDetail();
+        };
+        
+        // ============ TREND MODAL ============
+        const openFullTrendModal = () => {
+            if (!currentCategoryData) return;
+            
+            const g = currentCategoryData.group;
+            document.getElementById('trendCategoryName').textContent = g.name;
+            document.getElementById('trendCalculated').textContent = `Calculated from data: ${g.calculated_trend_percent > 0 ? '+' : ''}${g.calculated_trend_percent.toFixed(1)}% per month`;
+            
+            // Set current values
+            const pct = g.adjusted_trend_percent !== null ? Math.abs(g.adjusted_trend_percent) : Math.abs(g.calculated_trend_percent);
+            document.getElementById('trendPercent').value = pct.toFixed(1);
+            document.getElementById('trendPeriod').value = g.trend_period || 'month';
+            document.getElementById('trendDuration').value = g.trend_duration_days || '';
+            document.getElementById('trendThen').value = g.trend_then || '';
+            document.getElementById('trendThenPercent').value = g.trend_then_percent || 0;
+            
+            // Determine direction
+            const effectivePct = g.adjusted_trend_percent !== null ? g.adjusted_trend_percent : g.calculated_trend_percent;
+            currentTrendDirection = effectivePct > 2 ? 'up' : effectivePct < -2 ? 'down' : 'flat';
+            updateTrendDirectionButtons();
+            
+            // Show/hide then percent
+            document.getElementById('trendThen').onchange = () => {
+                const val = document.getElementById('trendThen').value;
+                document.getElementById('trendThenPercentRow').style.display = (val === 'up' || val === 'down') ? 'block' : 'none';
+            };
+            document.getElementById('trendThen').onchange();
+            
+            document.getElementById('trendModal').classList.add('active');
+        };
+        
+        const selectTrendDirection = (dir) => {
+            currentTrendDirection = dir;
+            updateTrendDirectionButtons();
+        };
+        
+        const updateTrendDirectionButtons = () => {
+            document.getElementById('trendUpBtn').classList.toggle('active', currentTrendDirection === 'up');
+            document.getElementById('trendFlatBtn').classList.toggle('active', currentTrendDirection === 'flat');
+            document.getElementById('trendDownBtn').classList.toggle('active', currentTrendDirection === 'down');
+        };
+        
+        const closeTrendModal = () => {
+            document.getElementById('trendModal').classList.remove('active');
+        };
+        
+        const saveTrendAdjustment = async () => {
+            const pct = parseFloat(document.getElementById('trendPercent').value) || 0;
+            const period = document.getElementById('trendPeriod').value;
+            const duration = parseInt(document.getElementById('trendDuration').value) || null;
+            const thenDir = document.getElementById('trendThen').value || null;
+            const thenPct = parseFloat(document.getElementById('trendThenPercent').value) || null;
+            
+            // Apply direction to percentage
+            let adjustedPct = pct;
+            if (currentTrendDirection === 'down') adjustedPct = -pct;
+            else if (currentTrendDirection === 'flat') adjustedPct = 0;
+            
+            try {
+                await api(`/groups/${currentCategoryId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        trend: currentTrendDirection,
+                        adjusted_trend_percent: adjustedPct,
+                        trend_period: period,
+                        trend_duration_days: duration,
+                        trend_then: thenDir,
+                        trend_then_percent: thenPct
+                    })
+                });
+                
+                closeTrendModal();
+                await loadCategoryDetail();
+                // Also refresh main groups list
+                allGroups = await api('/groups');
+            } catch (err) {
+                alert('Error saving trend: ' + err.message);
+            }
+        };
+        
+        // ============ CORRELATIONS ============
+        const loadCorrelations = async () => {
+            try {
+                const correlations = await api(`/groups/${currentCategoryId}/correlations`);
+                
+                if (!correlations.length) {
+                    document.getElementById('catCorrelationsList').innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No correlations defined. Add one to link this category\'s changes to others.</p>';
+                    return;
+                }
+                
+                document.getElementById('catCorrelationsList').innerHTML = correlations.map(c => `
+                    <div class="correlation-item">
+                        <div>
+                            <div style="font-size:14px;">
+                                When this goes up → <strong>${c.target_group_name}</strong> goes 
+                                <span style="color:${c.direction === 'same' ? 'var(--success)' : 'var(--danger)'};">
+                                    ${c.direction === 'same' ? 'up' : 'down'}
+                                </span>
+                                by <strong>${c.percent}%</strong>
+                            </div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                                Over ${c.delay_value} ${c.delay_unit}
+                            </div>
+                        </div>
+                        <button onclick="deleteCorrelation(${c.id})" style="padding:6px 10px;background:transparent;border:1px solid var(--danger);color:var(--danger);border-radius:6px;font-size:12px;">×</button>
+                    </div>
+                `).join('');
+            } catch (err) {
+                document.getElementById('catCorrelationsList').innerHTML = `<p style="color:var(--danger);font-size:13px;">${err.message}</p>`;
+            }
+        };
+        
+        const openAddCorrelationModal = async () => {
+            if (!currentCategoryData) return;
+            
+            document.getElementById('corrSourceName').textContent = currentCategoryData.group.name;
+            
+            // Populate target groups (exclude current)
+            const select = document.getElementById('corrTargetGroup');
+            select.innerHTML = allGroups
+                .filter(g => g.id !== currentCategoryId)
+                .map(g => `<option value="${g.id}">${g.name}</option>`)
+                .join('');
+            
+            // Reset form
+            document.getElementById('corrPercent').value = 50;
+            document.getElementById('corrDelay').value = 2;
+            document.getElementById('corrDelayUnit').value = 'weeks';
+            currentCorrDirection = 'same';
+            updateCorrDirectionButtons();
+            
+            document.getElementById('correlationModal').classList.add('active');
+        };
+        
+        const selectCorrDirection = (dir) => {
+            currentCorrDirection = dir;
+            updateCorrDirectionButtons();
+        };
+        
+        const updateCorrDirectionButtons = () => {
+            document.getElementById('corrSameBtn').classList.toggle('active', currentCorrDirection === 'same');
+            document.getElementById('corrOppositeBtn').classList.toggle('active', currentCorrDirection === 'opposite');
+        };
+        
+        const closeCorrelationModal = () => {
+            document.getElementById('correlationModal').classList.remove('active');
+        };
+        
+        const saveCorrelation = async () => {
+            const targetGroupId = parseInt(document.getElementById('corrTargetGroup').value);
+            const percent = parseFloat(document.getElementById('corrPercent').value) || 50;
+            const delayValue = parseInt(document.getElementById('corrDelay').value) || 0;
+            const delayUnit = document.getElementById('corrDelayUnit').value;
+            
+            try {
+                await api('/correlations', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        source_group_id: currentCategoryId,
+                        target_group_id: targetGroupId,
+                        direction: currentCorrDirection,
+                        percent: percent,
+                        delay_value: delayValue,
+                        delay_unit: delayUnit
+                    })
+                });
+                
+                closeCorrelationModal();
+                await loadCorrelations();
+            } catch (err) {
+                alert('Error saving correlation: ' + err.message);
+            }
+        };
+        
+        const deleteCorrelation = async (correlationId) => {
+            if (!confirm('Delete this correlation?')) return;
+            
+            try {
+                await api(`/correlations/${correlationId}`, { method: 'DELETE' });
+                await loadCorrelations();
+            } catch (err) {
+                alert('Error deleting: ' + err.message);
+            }
+        };
+        
+        // Keep old function for backwards compatibility
         const showCategoryTransactions = async (groupId) => {
             showScreen('transactionsScreen');
             document.getElementById('txnSearch').value = '';
@@ -2535,32 +3102,17 @@
         };
         
         // Trend Management
+        // Legacy - redirect to category detail
         const openTrendModal = (groupId, groupName) => {
-            currentTrendGroupId = groupId;
-            document.getElementById('trendCategoryName').textContent = groupName;
-            document.getElementById('trendModal').classList.add('active');
+            showCategoryDetail(groupId);
         };
         
-        const closeTrendModal = () => {
-            document.getElementById('trendModal').classList.remove('active');
-            currentTrendGroupId = null;
-        };
+        // These are now handled in the new functions above
+        let currentTrendGroupId = null;
         
         const setTrend = async (trend) => {
+            // Legacy function - kept for compatibility
             closeTrendModal();
-            
-            try {
-                await api(`/groups/${currentTrendGroupId}`, 'PATCH', { trend: trend });
-                
-                // Update local data
-                const group = allGroups.find(g => g.id === currentTrendGroupId);
-                if (group) group.trend = trend;
-                
-                renderCategories(allGroups);
-                
-            } catch (err) {
-                alert('Failed to set trend: ' + err.message);
-            }
         };
         
         // Update Data
