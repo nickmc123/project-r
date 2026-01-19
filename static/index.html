@@ -2756,10 +2756,11 @@
             
             try {
                 await api(`/groups/${currentCategoryId}`, 'PATCH', {
-                    trend_sentiment: currentTrendDirection,
-                    trend_percentage: adjustedPct,
-                    trend_time_period: period === 'month' ? 30 : 7,
-                    trend_target_goal: thenDir
+                    trend: currentTrendDirection,
+                    adjusted_trend_percent: adjustedPct,
+                    trend_period: period,
+                    trend_duration_days: duration,
+                    trend_then: thenDir
                 });
                 
                 closeTrendModal();
