@@ -34,6 +34,9 @@ class User(Base):
     reset_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, default=None)
     reset_token_expires: Mapped[Optional[dt]] = mapped_column(DateTime, nullable=True, default=None)
     
+    # Starting balance for forecasts
+    starting_balance: Mapped[float] = mapped_column(Numeric(15, 2), default=0)
+    
     created_at: Mapped[str] = mapped_column(DateTime, server_default=func.now())
 
 class Transaction(Base):
