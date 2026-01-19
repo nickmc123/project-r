@@ -1146,6 +1146,68 @@ def update_group(group_id: int, req: UpdateGroupRequest, user: User = Depends(ge
     db.commit()
     return {"ok": True, "id": group.id}
 
+@app.post("/groups/{group_id}/calculate-trend")
+def calculate_group_trend(group_id: int, lookback_days: int = 30, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Calculate trend for a group based on custom lookback period"""
+    group = db.query(TransactionGroup).filter(
+        TransactionGroup.id == group_id,
+        TransactionGroup.user_id == user.id
+    ).first()
+    
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Get transactions within the lookback period
+    from datetime import datetime, timedelta
+    cutoff_date = datetime.now().date() - timedelta(days=lookback_days)
+    
+    transactions = db.query(Transaction).filter(
+        Transaction.group_id == group_id,
+        Transaction.user_id == user.id,
+        Transaction.date >= cutoff_date
+    ).order_by(Transaction.date).all()
+    
+    if len(transactions) < 2:
+        # Not enough data to calculate trend
+        return {"calculated_trend_percent": 0, "lookback_days": lookback_days, "transaction_count": len(transactions)}
+    
+    # Split into two halves and compare
+    midpoint = len(transactions) // 2
+    first_half = transactions[:midpoint]
+    second_half = transactions[midpoint:]
+    
+    # Sum amounts for each half (inflows positive, outflows negative)
+    first_sum = sum(t.amount for t in first_half) if first_half else 0
+    second_sum = sum(t.amount for t in second_half) if second_half else 0
+    
+    # Calculate percentage change
+    if first_sum == 0:
+        trend_pct = 0
+    else:
+        trend_pct = ((second_sum - first_sum) / abs(first_sum)) * 100
+    
+    # Normalize to per-month rate (30 days)
+    half_period_days = lookback_days / 2
+    if half_period_days > 0:
+        trend_per_month = trend_pct * (30 / half_period_days)
+    else:
+        trend_per_month = 0
+    
+    # Round to 1 decimal
+    trend_per_month = round(trend_per_month, 1)
+    
+    # Optionally update the calculated_trend_percent in the database
+    group.calculated_trend_percent = trend_per_month
+    db.commit()
+    
+    return {
+        "calculated_trend_percent": trend_per_month,
+        "lookback_days": lookback_days,
+        "transaction_count": len(transactions),
+        "first_half_sum": first_sum,
+        "second_half_sum": second_sum
+    }
+
 class BatchMoveRequest(BaseModel):
     transaction_ids: List[int]
     group_id: Optional[int] = None
