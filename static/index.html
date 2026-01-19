@@ -1254,9 +1254,42 @@
                 <div class="action-icon">💳</div>
                 <div class="action-label">Transactions</div>
             </div>
-            <div class="action-btn" onclick="showChat()" style="grid-column: span 2;">
+            <div class="action-btn" onclick="showUpdateData()">
+                <div class="action-icon">📥</div>
+                <div class="action-label">Update Data</div>
+            </div>
+            <div class="action-btn" onclick="showChat()">
                 <div class="action-icon">💬</div>
                 <div class="action-label">Ask a Question</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Update Data Screen -->
+    <div id="updateData" class="screen">
+        <div class="page-header">
+            <button class="back-btn" onclick="showDashboard()">←</button>
+            <span class="page-title">Update Data</span>
+        </div>
+        
+        <div class="onboarding-content" style="padding-top: 20px;">
+            <p style="color:var(--text-muted); margin-bottom:16px; text-align:center;">
+                Paste new bank transactions below. Duplicates will be automatically skipped.
+            </p>
+            
+            <div class="form-group">
+                <label>Paste Transaction Data</label>
+                <textarea id="updateDataText" rows="12" placeholder="Paste your bank transactions here...&#10;&#10;Supported formats:&#10;• Tab-separated columns&#10;• CSV format&#10;• Date headers (e.g., JAN 15, 2026)"></textarea>
+            </div>
+            
+            <div id="updateDataMessage" style="margin-bottom: 16px;"></div>
+            
+            <button class="btn btn-primary" onclick="processUpdateData()">Import Transactions</button>
+            
+            <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border);">
+                <p style="color:var(--text-muted); font-size: 13px; margin-bottom: 12px;">Or upload a file:</p>
+                <input type="file" id="updateDataFile" accept=".csv,.txt,.xlsx" style="display:none" onchange="handleUpdateFile(event)">
+                <button class="btn btn-secondary" onclick="document.getElementById('updateDataFile').click()">📂 Choose File</button>
             </div>
         </div>
     </div>
@@ -2127,6 +2160,69 @@
             } catch (err) {
                 document.getElementById('forecastList').innerHTML = `<div class="message message-error">${err.message}</div>`;
             }
+        };
+        
+        // Update Data
+        const showUpdateData = () => {
+            showScreen('updateData');
+            document.getElementById('updateDataText').value = '';
+            document.getElementById('updateDataMessage').innerHTML = '';
+        };
+        
+        const processUpdateData = async () => {
+            const data = document.getElementById('updateDataText').value.trim();
+            if (!data) {
+                document.getElementById('updateDataMessage').innerHTML = '<div class="message message-error">Please paste some transaction data</div>';
+                return;
+            }
+            
+            document.getElementById('updateDataMessage').innerHTML = '<div class="spinner" style="margin:auto;"></div>';
+            
+            try {
+                // First analyze the data
+                const analysis = await api('/import/analyze', 'POST', { data });
+                
+                if (analysis.needs_user_input) {
+                    // Show mapping interface
+                    document.getElementById('updateDataMessage').innerHTML = '<div class="message message-error">Could not auto-detect format. Please use the field mapping interface.</div>';
+                    // Store data and show mapping screen
+                    pendingImportData = data;
+                    showMappingInterface(analysis);
+                    return;
+                }
+                
+                // If auto-detected, import directly
+                const result = await api('/import', 'POST', { data });
+                
+                let msg = `<div class="message message-success">✅ Imported ${result.imported.saved} transactions`;
+                if (result.imported.duplicates > 0) {
+                    msg += `<br><span style="font-size:12px;color:var(--text-muted);">${result.imported.duplicates} duplicates skipped</span>`;
+                }
+                msg += '</div>';
+                
+                document.getElementById('updateDataMessage').innerHTML = msg;
+                document.getElementById('updateDataText').value = '';
+                
+                // Refresh dashboard data
+                setTimeout(() => {
+                    loadDashboard();
+                }, 1500);
+                
+            } catch (err) {
+                document.getElementById('updateDataMessage').innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        };
+        
+        const handleUpdateFile = async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                document.getElementById('updateDataText').value = e.target.result;
+                processUpdateData();
+            };
+            reader.readAsText(file);
         };
         
         const showSettings = () => {
