@@ -307,7 +307,7 @@ class UserIntegration(Base):
     realm_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)  # QuickBooks company ID
     
     # Token expiry
-    token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    token_expires_at: Mapped[Optional[dt]] = mapped_column(DateTime, nullable=True)
     
     # Integration metadata
     company_name: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
@@ -316,10 +316,10 @@ class UserIntegration(Base):
     # Sync settings
     auto_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     sync_frequency_hours: Mapped[int] = mapped_column(Integer, default=24)
-    last_sync_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_sync_at: Mapped[Optional[dt]] = mapped_column(DateTime, nullable=True)
     
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[dt] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[dt] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
 class IntegrationSyncLog(Base):
@@ -329,8 +329,8 @@ class IntegrationSyncLog(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_integration_id: Mapped[int] = mapped_column(Integer, ForeignKey("user_integrations.id"), index=True)
     
-    sync_started_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    sync_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    sync_started_at: Mapped[dt] = mapped_column(DateTime, server_default=func.now())
+    sync_completed_at: Mapped[Optional[dt]] = mapped_column(DateTime, nullable=True)
     
     status: Mapped[str] = mapped_column(String(32))  # 'success', 'partial', 'failed'
     transactions_synced: Mapped[int] = mapped_column(Integer, default=0)
@@ -352,7 +352,7 @@ class QuickBooksTransactionMap(Base):
     qb_transaction_type: Mapped[str] = mapped_column(String(64))  # Invoice, Payment, Expense, etc
     
     # Sync metadata
-    last_synced_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    qb_last_modified: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_synced_at: Mapped[dt] = mapped_column(DateTime, server_default=func.now())
+    qb_last_modified: Mapped[Optional[dt]] = mapped_column(DateTime, nullable=True)
     
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[dt] = mapped_column(DateTime, server_default=func.now())
