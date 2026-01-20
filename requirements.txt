@@ -8,3 +8,4 @@ pydantic>=2.0.0
 # Rebuild: 2026-01-19T12:19:28.801528
 
 # Rebuild trigger 2
+# QuickBooks integrationrequests>=2.31.0cryptography>=41.0.0
