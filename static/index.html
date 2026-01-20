@@ -3882,12 +3882,23 @@ async function disconnectQuickBooks() {
 
 // Call this when the settings screen is shown
 function showSettings() {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById('settings').classList.add('active');
+    let modal = document.getElementById('settingsModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'settingsModal';
+        modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        modal.innerHTML = '<div style="background:#1a1a2e;border-radius:16px;padding:24px;width:90%;max-width:400px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;"><h2 style="color:white;margin:0;">Settings</h2><button onclick="closeSettings()" style="background:none;border:none;color:white;font-size:24px;cursor:pointer;">&times;</button></div><div style="background:#16213e;border-radius:12px;padding:16px;margin-bottom:16px;"><h3 style="color:white;margin:0 0 12px 0;font-size:16px;">QuickBooks Integration</h3><div id="qbStatus" style="color:#888;font-size:14px;margin-bottom:12px;">Loading status...</div><button id="qbConnectBtn" onclick="connectQuickBooks()" style="background:linear-gradient(135deg,#2ca01c,#1a7a10);color:white;border:none;border-radius:8px;padding:12px 20px;width:100%;font-size:14px;cursor:pointer;">Connect QuickBooks</button></div><div style="background:#16213e;border-radius:12px;padding:16px;"><h3 style="color:white;margin:0 0 12px 0;font-size:16px;">Account</h3><button onclick="logoutUser()" style="background:#e74c3c;color:white;border:none;border-radius:8px;padding:12px 20px;width:100%;font-size:14px;cursor:pointer;">Log Out</button></div></div>';
+        document.body.appendChild(modal);
+    }
+    modal.style.display = 'flex';
     loadQuickBooksStatus();
 }
 
-// Helper function to show messages (add if not already present)
+function closeSettings() {
+    const modal = document.getElementById('settingsModal');
+    if (modal) modal.style.display = 'none';
+}
+
 function showMessage(message, type = 'success') {
     // Implement your app's notification system here
     alert(message);
