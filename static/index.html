@@ -3700,7 +3700,7 @@
             reader.readAsText(file);
         };
         
-        const showSettings = () => {
+        const logoutUser = () => {
             if (confirm('Log out?')) {
                 localStorage.removeItem('projectr_token');
                 token = null;
