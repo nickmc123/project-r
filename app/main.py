@@ -7,9 +7,9 @@ import httpx
 import secrets
 from datetime import date, datetime, timedelta
 from typing import Optional, List
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Query, Body, BackgroundTasks, RedirectResponse
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Query, Body, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
