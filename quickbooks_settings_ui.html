@@ -1,0 +1,234 @@
+<!-- ============================================ -->
+<!-- QUICKBOOKS SETTINGS SECTION -->
+<!-- Add this to static/index.html -->
+<!-- ============================================ -->
+
+<!-- 1. ADD THIS CSS TO THE <style> SECTION -->
+<style>
+/* QuickBooks Settings */
+.integration-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.integration-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.integration-icon {
+    width: 48px;
+    height: 48px;
+    background: #2ca01c;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: white;
+    font-weight: bold;
+}
+
+.integration-details h3 {
+    margin: 0 0 4px 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.integration-details p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.integration-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-badge.connected {
+    background: rgba(44, 160, 28, 0.1);
+    color: #2ca01c;
+}
+
+.status-badge.disconnected {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+}
+
+.btn-connect {
+    padding: 8px 20px;
+    background: #2ca01c;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-connect:hover {
+    background: #248916;
+}
+
+.btn-disconnect {
+    padding: 8px 20px;
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-disconnect:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.sync-info {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+</style>
+
+<!-- 2. ADD THIS HTML SECTION TO THE BODY (after other screens like #dashboard) -->
+<div id="settings" class="screen">
+    <div class="container">
+        <h1>Settings</h1>
+        
+        <h2 style="margin-top: 32px;">Integrations</h2>
+        
+        <div class="integration-card">
+            <div class="integration-info">
+                <div class="integration-icon">QB</div>
+                <div class="integration-details">
+                    <h3>QuickBooks</h3>
+                    <p>Sync transactions automatically</p>
+                </div>
+            </div>
+            <div class="integration-status">
+                <span id="qb-status" class="status-badge disconnected">Not Connected</span>
+                <button id="qb-connect-btn" class="btn-connect" onclick="connectQuickBooks()">
+                    Connect
+                </button>
+                <div id="qb-sync-info" class="sync-info" style="display: none;">
+                    Last synced: <span id="qb-last-sync">Never</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 3. ADD THIS JAVASCRIPT TO THE <script> SECTION -->
+<script>
+// QuickBooks Integration Functions
+async function loadQuickBooksStatus() {
+    try {
+        const response = await fetch('/api/quickbooks/status', {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            updateQuickBooksUI(data);
+        }
+    } catch (error) {
+        console.error('Error loading QuickBooks status:', error);
+    }
+}
+
+function updateQuickBooksUI(data) {
+    const statusBadge = document.getElementById('qb-status');
+    const connectBtn = document.getElementById('qb-connect-btn');
+    const syncInfo = document.getElementById('qb-sync-info');
+    const lastSync = document.getElementById('qb-last-sync');
+    
+    if (data.connected) {
+        statusBadge.textContent = 'Connected';
+        statusBadge.className = 'status-badge connected';
+        connectBtn.textContent = 'Disconnect';
+        connectBtn.className = 'btn-disconnect';
+        connectBtn.onclick = disconnectQuickBooks;
+        
+        if (data.last_sync) {
+            syncInfo.style.display = 'block';
+            lastSync.textContent = new Date(data.last_sync).toLocaleString();
+        }
+    } else {
+        statusBadge.textContent = 'Not Connected';
+        statusBadge.className = 'status-badge disconnected';
+        connectBtn.textContent = 'Connect';
+        connectBtn.className = 'btn-connect';
+        connectBtn.onclick = connectQuickBooks;
+        syncInfo.style.display = 'none';
+    }
+}
+
+function connectQuickBooks() {
+    // Redirect to QuickBooks OAuth flow
+    const token = localStorage.getItem('token');
+    window.location.href = `/api/quickbooks/connect?token=${token}`;
+}
+
+async function disconnectQuickBooks() {
+    if (!confirm('Are you sure you want to disconnect QuickBooks? This will stop automatic syncing.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/quickbooks/disconnect', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+        
+        if (response.ok) {
+            await loadQuickBooksStatus();
+            showMessage('QuickBooks disconnected successfully');
+        } else {
+            showMessage('Failed to disconnect QuickBooks', 'error');
+        }
+    } catch (error) {
+        console.error('Error disconnecting QuickBooks:', error);
+        showMessage('Failed to disconnect QuickBooks', 'error');
+    }
+}
+
+// Call this when the settings screen is shown
+function showSettings() {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('settings').classList.add('active');
+    loadQuickBooksStatus();
+}
+
+// Helper function to show messages (add if not already present)
+function showMessage(message, type = 'success') {
+    // Implement your app's notification system here
+    alert(message);
+}
+</script>
+
+<!-- 4. ADD A SETTINGS BUTTON TO YOUR NAVIGATION -->
+<!-- Example: Add this to your header/nav -->
+<button onclick="showSettings()" class="nav-btn">
+    <i class="icon-settings"></i> Settings
+</button>
