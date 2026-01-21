@@ -1816,8 +1816,8 @@ def quickbooks_connect(token: str = None, db: Session = Depends(get_db)):
     except:
         raise HTTPException(status_code=401, detail="Invalid token")
     
-    client_id = os.environ.get("QUICKBOOKS_CLIENT_ID", "")
-    redirect_uri = os.environ.get("QUICKBOOKS_REDIRECT_URI", "")
+    client_id = os.environ.get("QB_CLIENT_ID", "")
+    redirect_uri = os.environ.get("QB_REDIRECT_URI", "")
     
     if not client_id:
         return {"error": "QuickBooks integration not configured"}
