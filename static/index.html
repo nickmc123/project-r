@@ -3809,7 +3809,7 @@ async function loadQuickBooksStatus() {
     try {
         const response = await fetch('/api/quickbooks/status', {
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                'Authorization': `Bearer ${localStorage.getItem('projectr_token')}`
             }
         });
         
@@ -3851,7 +3851,7 @@ function updateQuickBooksUI(data) {
 
 function connectQuickBooks() {
     // Redirect to QuickBooks OAuth flow
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('projectr_token');
     window.location.href = `/integrations/quickbooks/connect?token=${token}`;
 }
 
@@ -3864,7 +3864,7 @@ async function disconnectQuickBooks() {
         const response = await fetch('/api/quickbooks/disconnect', {
             method: 'DELETE',
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                'Authorization': `Bearer ${localStorage.getItem('projectr_token')}`
             }
         });
         
