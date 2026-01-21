@@ -3850,11 +3850,12 @@ function updateQuickBooksUI(data) {
 }
 
 function connectQuickBooks() {
-    // Redirect to QuickBooks OAuth flow
     const token = localStorage.getItem('projectr_token');
-    window.location.href = `/integrations/quickbooks/connect?token=${token}`;
+    fetch(`/integrations/quickbooks/connect?token=${token}`).then(r => r.json()).then(data => {
+        if (data.oauth_url) window.location.href = data.oauth_url;
+        else alert('Failed to get OAuth URL');
+    }).catch(e => alert('Error: ' + e.message));
 }
-
 async function disconnectQuickBooks() {
     if (!confirm('Are you sure you want to disconnect QuickBooks? This will stop automatic syncing.')) {
         return;

@@ -285,14 +285,8 @@ def signup(req: SignupRequest, db: Session = Depends(get_db), background_tasks: 
     except Exception as e:
         print(f"Webhook notification failed: {e}")
     
-    return {
-        "token": create_token(user.id),
-        "user": {
-            "email": user.email,
-            "company_name": user.company_name,
-            "onboarding_step": user.onboarding_step,
-            "plan": user.plan
-        }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
     }
 
 @app.post("/auth/login")
@@ -301,15 +295,8 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     if not user or not verify_pw(req.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    return {
-        "token": create_token(user.id),
-        "user": {
-            "email": user.email,
-            "company_name": user.company_name,
-            "onboarding_step": user.onboarding_step,
-            "onboarding_complete": user.onboarding_complete,
-            "plan": user.plan
-        }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
     }
 
 @app.post("/auth/forgot-password")
@@ -365,17 +352,8 @@ def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
 
 @app.get("/me")
 def get_me(user: User = Depends(get_current_user)):
-    return {
-        "email": user.email,
-        "company_name": user.company_name,
-        "company_website": user.company_website,
-        "logo_url": user.logo_url,
-        "primary_color": user.primary_color,
-        "secondary_color": user.secondary_color,
-        "onboarding_step": user.onboarding_step,
-        "onboarding_complete": user.onboarding_complete,
-        "plan": user.plan
-    }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
 
 # Onboarding
 # Business type keywords and their associated categories
@@ -453,19 +431,11 @@ def detect_business_type(text: str) -> dict:
     
     if best_match and best_score >= 2:  # Need at least 2 keyword matches
         config = BUSINESS_TYPE_KEYWORDS[best_match]
-        return {
-            "business_type": best_match.replace("_", " ").title(),
-            "confidence": min(best_score * 15, 95),  # Cap at 95%
-            "suggested_revenues": config["revenues"],
-            "suggested_expenses": config["expenses"],
-        }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
     
-    return {
-        "business_type": "General Business",
-        "confidence": 30,
-        "suggested_revenues": DEFAULT_CATEGORIES["revenues"],
-        "suggested_expenses": DEFAULT_CATEGORIES["expenses"],
-    }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
 
 async def fetch_branding_from_website(website: str) -> dict:
     """Fetch logo, colors, and business info from a website by scraping HTML"""
@@ -620,34 +590,15 @@ async def set_company_info(req: CompanyInfoRequest, user: User = Depends(get_cur
     user.onboarding_step = max(user.onboarding_step, 1)
     db.commit()
     
-    return {
-        "ok": True, 
-        "step": 1,
-        "fetched_logo": fetched_branding.get("logo_url"),
-        "fetched_color": fetched_branding.get("primary_color"),
-        "applied_logo": user.logo_url,
-        "applied_color": user.primary_color,
-        "business_type": fetched_branding.get("business_type"),
-        "business_confidence": fetched_branding.get("business_confidence"),
-        "business_description": fetched_branding.get("business_description"),
-        "suggested_revenues": fetched_branding.get("suggested_revenues", []),
-        "suggested_expenses": fetched_branding.get("suggested_expenses", []),
-    }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
 
 @app.get("/fetch-branding")
 async def preview_branding(website: str = Query(..., description="Website to fetch branding from")):
     """Preview logo, colors, and business info from a website without saving"""
     branding = await fetch_branding_from_website(website)
-    return {
-        "website": website,
-        "logo_url": branding.get("logo_url"),
-        "primary_color": branding.get("primary_color"),
-        "business_type": branding.get("business_type"),
-        "business_confidence": branding.get("business_confidence"),
-        "business_description": branding.get("business_description"),
-        "suggested_revenues": branding.get("suggested_revenues", []),
-        "suggested_expenses": branding.get("suggested_expenses", []),
-    }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
 
 @app.post("/onboarding/upload-data")
 async def upload_bank_data(file: UploadFile = File(...), user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -660,11 +611,8 @@ async def upload_bank_data(file: UploadFile = File(...), user: User = Depends(ge
     user.onboarding_step = max(user.onboarding_step, 2)
     db.commit()
     
-    return {
-        "ok": True,
-        "step": 2,
-        "imported": result
-    }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
 
 @app.post("/onboarding/paste-data")
 async def paste_bank_data(data: str = Body(..., embed=True), user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -675,11 +623,8 @@ async def paste_bank_data(data: str = Body(..., embed=True), user: User = Depend
     user.onboarding_step = max(user.onboarding_step, 2)
     db.commit()
     
-    return {
-        "ok": True,
-        "step": 2,
-        "imported": result
-    }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
 
 @app.post("/import")
 async def import_data(data: str = Body(..., embed=True), user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -704,38 +649,12 @@ async def analyze_import_data(
     
     if analysis.get("needs_user_input"):
         # Return analysis so user can define field mapping
-        return {
-            "ok": True,
-            "status": "needs_mapping",
-            "message": "Please help identify the fields in your data",
-            "analysis": {
-                "columns": analysis.get("columns", []),
-                "sample_data": analysis.get("sample_data", []),
-                "separator": analysis.get("separator"),
-                "has_header": analysis.get("has_header"),
-                "num_columns": analysis.get("num_columns"),
-                "total_rows": analysis.get("total_rows")
-            },
-            "debug": debug_log
-        }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
     else:
         # Return parsed transactions for confirmation
-        return {
-            "ok": True,
-            "status": "parsed",
-            "message": f"Found {len(transactions)} transactions - please confirm",
-            "transactions": [
-                {
-                    "id": i,
-                    "date": t["date"].isoformat() if t.get("date") else None,
-                    "amount": abs(t.get("signed_amount", t["amount"])),
-                    "type": t.get("type", "debit"),
-                    "description": t.get("description", ""),
-                    "balance": t.get("balance"),
-                    "account": t.get("account"),
-                    "category": t.get("category"),
-                    "raw_line": t.get("raw_line", "")
-                }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
                 for i, t in enumerate(transactions)
             ],
             "detected_mapping": analysis.get("detected_mapping"),
@@ -756,22 +675,8 @@ async def import_with_mapping(
     
     transactions, debug_log = parse_with_mapping(data, mapping)
     
-    return {
-        "ok": True,
-        "status": "parsed",
-        "message": f"Parsed {len(transactions)} transactions with your mapping",
-        "transactions": [
-            {
-                "id": i,
-                "date": t["date"].isoformat() if t.get("date") else None,
-                "amount": abs(t.get("signed_amount", t["amount"])),
-                "type": t.get("type", "debit"),
-                "description": t.get("description", ""),
-                "balance": t.get("balance"),
-                "account": t.get("account"),
-                "category": t.get("category"),
-                "raw_line": t.get("raw_line", "")
-            }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
             for i, t in enumerate(transactions)
         ],
         "mapping_used": mapping,
@@ -880,33 +785,16 @@ async def confirm_import(
     
     db.commit()
     
-    return {
-        "ok": True,
-        "saved": saved,
-        "duplicates": duplicates,
-        "deleted": deleted,
-        "message": f"Saved {saved} transactions" + (f", {duplicates} duplicates skipped" if duplicates else "") + (f", {deleted} removed" if deleted else "")
-    }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
 
 @app.post("/import/debug")
 async def import_data_debug(data: str = Body(..., embed=True), user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Import with full debug output - doesn't save to DB"""
     from .services.ingest import auto_parse_data
     transactions, analysis, debug_log = auto_parse_data(data)
-    return {
-        "ok": True,
-        "parsed_count": len(transactions),
-        "needs_user_input": analysis.get("needs_user_input", False),
-        "analysis": analysis,
-        "transactions": [
-            {
-                "date": t["date"].isoformat() if t.get("date") else None,
-                "amount": t.get("amount"),
-                "signed_amount": t.get("signed_amount"),
-                "type": t.get("type"),
-                "description": t.get("description", "")[:50] if t.get("description") else "",
-                "balance": t.get("balance")
-            }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
             for t in transactions[:20]
         ],
         "debug": debug_log
@@ -950,11 +838,8 @@ def create_transaction_group(req: CreateGroupRequest, user: User = Depends(get_c
         transaction_ids=req.transaction_ids,
         allow_offsets=req.allow_offsets
     )
-    return {
-        "id": group.id,
-        "name": group.name,
-        "ok": True
-    }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
 
 @app.get("/groups/{group_id}/transactions")
 def get_group_txns(group_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -1022,17 +907,8 @@ def get_group_trend_detail(
     ).order_by(Transaction.date_posted.desc()).all()
     
     if not txns:
-        return {
-            "group": {
-                "id": group.id,
-                "name": group.name,
-                "trend": group.trend,
-                "calculated_trend_percent": float(group.calculated_trend_percent) if group.calculated_trend_percent else 0,
-                "adjusted_trend_percent": float(group.adjusted_trend_percent) if group.adjusted_trend_percent else None
-            },
-            "periods": [],
-            "period_type": period
-        }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
     
     # Group by week or month
     period_totals = defaultdict(lambda: {"total": 0, "count": 0, "transactions": []})
@@ -1081,21 +957,8 @@ def get_group_trend_detail(
         if older_avg != 0:
             calc_trend_pct = round((recent_avg - older_avg) / abs(older_avg) * 100, 1)
     
-    return {
-        "group": {
-            "id": group.id,
-            "name": group.name,
-            "trend": group.trend or "flat",
-            "calculated_trend_percent": calc_trend_pct,
-            "adjusted_trend_percent": float(group.adjusted_trend_percent) if group.adjusted_trend_percent else None,
-            "trend_period": group.trend_period or "month",
-            "trend_duration_days": group.trend_duration_days,
-            "trend_then": group.trend_then,
-            "trend_then_percent": float(group.trend_then_percent) if group.trend_then_percent else None
-        },
-        "periods": periods,
-        "period_type": period
-    }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
 
 class UpdateGroupRequest(BaseModel):
     name: Optional[str] = None
@@ -1200,13 +1063,8 @@ def calculate_group_trend(group_id: int, lookback_days: int = 30, user: User = D
     group.calculated_trend_percent = trend_per_month
     db.commit()
     
-    return {
-        "calculated_trend_percent": trend_per_month,
-        "lookback_days": lookback_days,
-        "transaction_count": len(transactions),
-        "first_half_sum": first_sum,
-        "second_half_sum": second_sum
-    }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
 
 class BatchMoveRequest(BaseModel):
     transaction_ids: List[int]
@@ -1388,23 +1246,8 @@ def get_group_trend_detail(group_id: int, period: str = "week", user: User = Dep
     ).order_by(Transaction.date_posted.desc()).all()
     
     if not txns:
-        return {
-            "group": {
-                "id": group.id,
-                "name": group.name,
-                "stream_type": group.stream_type,
-                "frequency": group.frequency,
-                "calculated_trend_percent": 0,
-                "adjusted_trend_percent": None,
-                "trend_period": group.trend_period,
-                "trend_duration_days": group.trend_duration_days,
-                "trend_then": group.trend_then,
-                "trend_then_percent": None
-            },
-            "periods": [],
-            "trend_direction": "flat",
-            "trend_percent": 0
-        }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
     
     # Group by period
     from collections import defaultdict
@@ -1468,23 +1311,8 @@ def get_group_trend_detail(group_id: int, period: str = "week", user: User = Dep
     group.calculated_trend_percent = change_percent
     db.commit()
     
-    return {
-        "group": {
-            "id": group.id,
-            "name": group.name,
-            "stream_type": group.stream_type,
-            "frequency": group.frequency,
-            "calculated_trend_percent": round(change_percent, 1),
-            "adjusted_trend_percent": float(group.adjusted_trend_percent) if group.adjusted_trend_percent else None,
-            "trend_period": group.trend_period,
-            "trend_duration_days": group.trend_duration_days,
-            "trend_then": group.trend_then,
-            "trend_then_percent": float(group.trend_then_percent) if group.trend_then_percent else None
-        },
-        "periods": period_list,
-        "trend_direction": trend_direction,
-        "trend_percent": round(change_percent, 1)
-    }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
 
 @app.post("/trends/sentiment")
 def set_trend_sentiment(req: TrendSentimentRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -1598,16 +1426,8 @@ def get_summary(user: User = Depends(get_current_user), db: Session = Depends(ge
     baseline = forecast["summary"]["baseline"]
     adjusted = forecast["summary"].get("adjusted", baseline)
     
-    return {
-        "current_balance": forecast["starting_balance"],
-        "low_point": baseline["low_point"],
-        "high_point": baseline["high_point"],
-        "monthly_profit": baseline["monthly_profit"],
-        "monthly_profit_calculated": baseline["monthly_profit"],
-        "monthly_profit_adjusted": adjusted.get("monthly_profit", baseline["monthly_profit"]),
-        "status": "HEALTHY" if baseline["low_point"]["balance"] > 10000 else 
-                  "TIGHT" if baseline["low_point"]["balance"] > 0 else "CRITICAL"
-    }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
 
 # Transactions
 @app.get("/transactions")
@@ -1630,16 +1450,8 @@ def list_transactions(
     total = query.count()
     transactions = query.order_by(Transaction.date_posted.desc()).offset((page-1)*per_page).limit(per_page).all()
     
-    return {
-        "transactions": [
-            {
-                "id": t.id,
-                "date": t.date_posted,
-                "amount": float(t.amount_signed),
-                "description": t.description,
-                "group_id": t.group_id,
-                "is_offset": t.is_offset
-            }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
             for t in transactions
         ],
         "total": total,
@@ -1803,18 +1615,26 @@ async def ask_question_post(
 
 # QuickBooks Integration (placeholder)
 @app.get("/integrations/quickbooks/connect")
-def quickbooks_connect(user: User = Depends(get_current_user)):
+def quickbooks_connect(token: str = None):
     """Get QuickBooks OAuth URL"""
-    # TODO: Implement QuickBooks OAuth
+    # Validate token
+    if not token:
+        raise HTTPException(status_code=400, detail="Token required")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
     client_id = os.environ.get("QUICKBOOKS_CLIENT_ID", "")
     redirect_uri = os.environ.get("QUICKBOOKS_REDIRECT_URI", "")
     
     if not client_id:
         return {"error": "QuickBooks integration not configured"}
     
-    return {
-        "oauth_url": f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user.id}"
-    }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
 
 if __name__ == "__main__":
     import uvicorn
@@ -1883,18 +1703,11 @@ async def get_quickbooks_status(user=Depends(get_current_user)):
     integration = qb_service.get_user_integration(db, user.id)
     
     if not integration:
-        return {
-            "connected": False,
-            "company_name": None,
-            "last_sync": None
-        }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
     
-    return {
-        "connected": integration.is_active,
-        "company_name": integration.company_name,
-        "last_sync": integration.last_sync_at.isoformat() if integration.last_sync_at else None,
-        "auto_sync_enabled": integration.auto_sync_enabled
-    }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
 
 
 @app.post("/api/quickbooks/sync")
@@ -1911,11 +1724,8 @@ async def sync_quickbooks(user=Depends(get_current_user)):
     
     try:
         result = qb_service.sync_transactions(db, user.id)
-        return {
-            "success": True,
-            "transactions_synced": result.get("transactions_synced", 0),
-            "message": "Sync completed successfully"
-        }
+    oauth_url = f"https://appcenter.intuit.com/connect/oauth2?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=com.intuit.quickbooks.accounting&state={user_id}"
+    return RedirectResponse(url=oauth_url)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
 
