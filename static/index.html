@@ -2300,7 +2300,7 @@
             
             try {
                 const res = await fetch('/onboarding/upload-data', {
-                    method: 'POST',
+                    method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${token}` },
                     body: formData
                 });
@@ -3852,7 +3852,7 @@ function updateQuickBooksUI(data) {
 function connectQuickBooks() {
     // Redirect to QuickBooks OAuth flow
     const token = localStorage.getItem('token');
-    window.location.href = `/api/quickbooks/connect?token=${token}`;
+    window.location.href = `/integrations/quickbooks/connect?token=${token}`;
 }
 
 async function disconnectQuickBooks() {
@@ -3862,7 +3862,7 @@ async function disconnectQuickBooks() {
     
     try {
         const response = await fetch('/api/quickbooks/disconnect', {
-            method: 'POST',
+            method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
