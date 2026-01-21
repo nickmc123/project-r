@@ -185,6 +185,87 @@
             padding: 20px 0;
         }
         
+        /* Branding Preview */
+        .branding-preview {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .branding-preview-logo {
+            width: 80px;
+            height: 80px;
+            border-radius: 16px;
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: 700;
+            background: var(--primary);
+            overflow: hidden;
+        }
+        
+        .branding-preview-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .branding-preview-name {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .branding-preview-type {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+        
+        .branding-colors {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .color-swatch {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        
+        .branding-fetching {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .branding-message {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        
         /* Data Upload */
         .upload-zone {
             border: 2px dashed rgba(255,255,255,0.3);
@@ -1170,111 +1251,7 @@
         .correlation-item:last-child {
             margin-bottom: 0;
         }
-    
- SECTION -->
-<style>
-/* QuickBooks Settings */
-.integration-card {
-    background: var(--card-bg);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.integration-info {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
-.integration-icon {
-    width: 48px;
-    height: 48px;
-    background: #2ca01c;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    color: white;
-    font-weight: bold;
-}
-
-.integration-details h3 {
-    margin: 0 0 4px 0;
-    font-size: 16px;
-    font-weight: 600;
-}
-
-.integration-details p {
-    margin: 0;
-    font-size: 13px;
-    color: var(--text-muted);
-}
-
-.integration-status {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
-}
-
-.status-badge {
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-}
-
-.status-badge.connected {
-    background: rgba(44, 160, 28, 0.1);
-    color: #2ca01c;
-}
-
-.status-badge.disconnected {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-muted);
-}
-
-.btn-connect {
-    padding: 8px 20px;
-    background: #2ca01c;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.btn-connect:hover {
-    background: #248916;
-}
-
-.btn-disconnect {
-    padding: 8px 20px;
-    background: transparent;
-    color: var(--danger);
-    border: 1px solid var(--danger);
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.btn-disconnect:hover {
-    background: rgba(239, 68, 68, 0.1);
-}
-
-.sync-info {
-    font-size: 12px;
-    color: var(--text-muted);
-}
-
-</style>
+    </style>
 </head>
 <body>
     <!-- Auth Screen -->
@@ -1411,9 +1388,30 @@
             <p style="color: var(--text-muted); font-size: 13px; margin-top: 20px;">
                 We'll try to fetch your logo and brand colors from your website.
             </p>
+            
+            <!-- Branding Preview (hidden by default) -->
+            <div id="brandingFetching" style="display: none;">
+                <div class="branding-fetching">
+                    <div class="spinner"></div>
+                    <div class="branding-message">Fetching your brand info...</div>
+                </div>
+            </div>
+            
+            <div id="brandingPreview" class="branding-preview" style="display: none;">
+                <div class="branding-preview-logo" id="previewLogo">
+                    <span id="previewLogoLetter"></span>
+                    <img id="previewLogoImg" style="display: none;" alt="Company Logo">
+                </div>
+                <div class="branding-preview-name" id="previewCompanyName"></div>
+                <div class="branding-preview-type" id="previewBusinessType"></div>
+                <div class="branding-colors" id="previewColors"></div>
+                <p style="color: var(--text-muted); font-size: 12px;">
+                    You can customize these later in settings
+                </p>
+            </div>
         </div>
         
-        <button class="btn btn-primary" onclick="submitCompanyInfo()">Continue</button>
+        <button class="btn btn-primary" id="companyInfoBtn" onclick="submitCompanyInfo()">Continue</button>
     </div>
     
     <!-- Onboarding: Upload Data -->
@@ -1734,9 +1732,6 @@
             <button class="back-btn" onclick="showDashboard()">←</button>
             <span class="page-title">Update Data</span>
         </div>
-
-    
-
         
         <div class="onboarding-content" style="padding-top: 20px;">
             <p style="color:var(--text-muted); margin-bottom:16px; text-align:center;">
@@ -2127,6 +2122,15 @@
         const showScreen = (id) => {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(id).classList.add('active');
+            
+            // Reset branding preview when returning to onboarding1
+            if (id === 'onboarding1') {
+                brandingConfirmed = false;
+                document.getElementById('brandingFetching').style.display = 'none';
+                document.getElementById('brandingPreview').style.display = 'none';
+                document.getElementById('companyInfoBtn').textContent = 'Continue';
+                document.getElementById('companyInfoBtn').disabled = false;
+            }
         };
         
         // Auth
@@ -2260,14 +2264,103 @@
         }
         
         // Onboarding Step 1: Company Info
+        let brandingConfirmed = false;
+        
+        // Reset branding preview when user changes inputs
+        ['companyName', 'companyWebsite'].forEach(id => {
+            document.getElementById(id).addEventListener('input', () => {
+                if (brandingConfirmed) {
+                    brandingConfirmed = false;
+                    document.getElementById('brandingPreview').style.display = 'none';
+                    document.getElementById('companyInfoBtn').textContent = 'Continue';
+                }
+            });
+        });
+        
         const submitCompanyInfo = async () => {
-            try {
-                await api('/onboarding/company', 'POST', {
-                    company_name: document.getElementById('companyName').value,
-                    company_website: document.getElementById('companyWebsite').value
-                });
+            const companyName = document.getElementById('companyName').value.trim();
+            const companyWebsite = document.getElementById('companyWebsite').value.trim();
+            const btn = document.getElementById('companyInfoBtn');
+            
+            if (!companyName) {
+                alert('Please enter your company name');
+                return;
+            }
+            
+            // If already confirmed, proceed to next step
+            if (brandingConfirmed) {
                 showScreen('onboarding2');
+                return;
+            }
+            
+            try {
+                // Show fetching state if website provided
+                if (companyWebsite) {
+                    document.getElementById('brandingFetching').style.display = 'block';
+                    document.getElementById('brandingPreview').style.display = 'none';
+                    btn.disabled = true;
+                    btn.textContent = 'Fetching...';
+                }
+                
+                const result = await api('/onboarding/company', 'POST', {
+                    company_name: companyName,
+                    company_website: companyWebsite
+                });
+                
+                // Hide fetching state
+                document.getElementById('brandingFetching').style.display = 'none';
+                
+                // Show branding preview
+                const preview = document.getElementById('brandingPreview');
+                const previewLogo = document.getElementById('previewLogo');
+                const previewLogoLetter = document.getElementById('previewLogoLetter');
+                const previewLogoImg = document.getElementById('previewLogoImg');
+                const previewName = document.getElementById('previewCompanyName');
+                const previewType = document.getElementById('previewBusinessType');
+                const previewColors = document.getElementById('previewColors');
+                
+                // Set company name
+                previewName.textContent = companyName;
+                
+                // Set business type if detected
+                if (result.business_type) {
+                    previewType.textContent = result.business_type + (result.business_confidence ? ` (${Math.round(result.business_confidence * 100)}% match)` : '');
+                    previewType.style.display = 'block';
+                } else {
+                    previewType.style.display = 'none';
+                }
+                
+                // Set logo
+                if (result.applied_logo) {
+                    previewLogoImg.src = result.applied_logo;
+                    previewLogoImg.style.display = 'block';
+                    previewLogoLetter.style.display = 'none';
+                } else {
+                    previewLogoLetter.textContent = companyName.charAt(0).toUpperCase();
+                    previewLogoLetter.style.display = 'block';
+                    previewLogoImg.style.display = 'none';
+                }
+                
+                // Set primary color on logo background
+                if (result.applied_color) {
+                    previewLogo.style.background = result.applied_color;
+                    // Show color swatch
+                    previewColors.innerHTML = `<div class="color-swatch" style="background: ${result.applied_color};"></div>`;
+                    previewColors.style.display = 'flex';
+                } else {
+                    previewLogo.style.background = 'var(--primary)';
+                    previewColors.style.display = 'none';
+                }
+                
+                preview.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Looks Good!';
+                brandingConfirmed = true;
+                
             } catch (err) {
+                document.getElementById('brandingFetching').style.display = 'none';
+                btn.disabled = false;
+                btn.textContent = 'Continue';
                 alert(err.message);
             }
         };
@@ -2300,7 +2393,7 @@
             
             try {
                 const res = await fetch('/onboarding/upload-data', {
-                    method: 'DELETE',
+                    method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` },
                     body: formData
                 });
@@ -2597,6 +2690,9 @@
             }
         };
         
+        const connectQuickBooks = () => {
+            alert('QuickBooks integration coming soon!');
+        };
         
         // Onboarding Step 3: Categorization
         const loadSuggestedGroups = async () => {
@@ -3700,7 +3796,7 @@
             reader.readAsText(file);
         };
         
-        const logoutUser = () => {
+        const showSettings = () => {
             if (confirm('Log out?')) {
                 localStorage.removeItem('projectr_token');
                 token = null;
@@ -3803,108 +3899,7 @@
                 token = null;
             });
         }
-    
-// QuickBooks Integration Functions
-async function loadQuickBooksStatus() {
-    try {
-        const response = await fetch('/api/quickbooks/status', {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('projectr_token')}`
-            }
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            updateQuickBooksUI(data);
-        }
-    } catch (error) {
-        console.error('Error loading QuickBooks status:', error);
-    }
-}
-
-function updateQuickBooksUI(data) {
-    const statusBadge = document.getElementById('qb-status');
-    const connectBtn = document.getElementById('qb-connect-btn');
-    const syncInfo = document.getElementById('qb-sync-info');
-    const lastSync = document.getElementById('qb-last-sync');
-    
-    if (data.connected) {
-        statusBadge.textContent = 'Connected';
-        statusBadge.className = 'status-badge connected';
-        connectBtn.textContent = 'Disconnect';
-        connectBtn.className = 'btn-disconnect';
-        connectBtn.onclick = disconnectQuickBooks;
-        
-        if (data.last_sync) {
-            syncInfo.style.display = 'block';
-            lastSync.textContent = new Date(data.last_sync).toLocaleString();
-        }
-    } else {
-        statusBadge.textContent = 'Not Connected';
-        statusBadge.className = 'status-badge disconnected';
-        connectBtn.textContent = 'Connect';
-        connectBtn.className = 'btn-connect';
-        connectBtn.onclick = connectQuickBooks;
-        syncInfo.style.display = 'none';
-    }
-}
-
-function connectQuickBooks() {
-    const token = localStorage.getItem('projectr_token');
-    fetch(`/integrations/quickbooks/connect?token=${token}`).then(r => r.json()).then(data => {
-        if (data.oauth_url) window.location.href = data.oauth_url;
-        else alert('Failed to get OAuth URL');
-    }).catch(e => alert('Error: ' + e.message));
-}
-async function disconnectQuickBooks() {
-    if (!confirm('Are you sure you want to disconnect QuickBooks? This will stop automatic syncing.')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch('/api/quickbooks/disconnect', {
-            method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('projectr_token')}`
-            }
-        });
-        
-        if (response.ok) {
-            await loadQuickBooksStatus();
-            showMessage('QuickBooks disconnected successfully');
-        } else {
-            showMessage('Failed to disconnect QuickBooks', 'error');
-        }
-    } catch (error) {
-        console.error('Error disconnecting QuickBooks:', error);
-        showMessage('Failed to disconnect QuickBooks', 'error');
-    }
-}
-
-// Call this when the settings screen is shown
-function showSettings() {
-    let modal = document.getElementById('settingsModal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'settingsModal';
-        modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;';
-        modal.innerHTML = '<div style="background:#1a1a2e;border-radius:16px;padding:24px;width:90%;max-width:400px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;"><h2 style="color:white;margin:0;">Settings</h2><button onclick="closeSettings()" style="background:none;border:none;color:white;font-size:24px;cursor:pointer;">&times;</button></div><div style="background:#16213e;border-radius:12px;padding:16px;margin-bottom:16px;"><h3 style="color:white;margin:0 0 12px 0;font-size:16px;">QuickBooks Integration</h3><div id="qbStatus" style="color:#888;font-size:14px;margin-bottom:12px;">Loading status...</div><button id="qbConnectBtn" onclick="connectQuickBooks()" style="background:linear-gradient(135deg,#2ca01c,#1a7a10);color:white;border:none;border-radius:8px;padding:12px 20px;width:100%;font-size:14px;cursor:pointer;">Connect QuickBooks</button></div><div style="background:#16213e;border-radius:12px;padding:16px;"><h3 style="color:white;margin:0 0 12px 0;font-size:16px;">Account</h3><button onclick="logoutUser()" style="background:#e74c3c;color:white;border:none;border-radius:8px;padding:12px 20px;width:100%;font-size:14px;cursor:pointer;">Log Out</button></div></div>';
-        document.body.appendChild(modal);
-    }
-    modal.style.display = 'flex';
-    loadQuickBooksStatus();
-}
-
-function closeSettings() {
-    const modal = document.getElementById('settingsModal');
-    if (modal) modal.style.display = 'none';
-}
-
-function showMessage(message, type = 'success') {
-    // Implement your app's notification system here
-    alert(message);
-}
-
-</script>
+    </script>
 </body>
 </html>
+<!-- v2026-01-19T11:54:24.647087 -->
