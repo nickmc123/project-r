@@ -2324,7 +2324,7 @@
                 
                 // Set business type if detected
                 if (result.business_type) {
-                    previewType.textContent = result.business_type + (result.business_confidence ? ` (${Math.round(result.business_confidence * 100)}% match)` : '');
+                    previewType.textContent = result.business_type + (result.business_confidence ? ` (${Math.round(result.business_confidence)}% match)` : '');
                     previewType.style.display = 'block';
                 } else {
                     previewType.style.display = 'none';
