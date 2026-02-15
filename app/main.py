@@ -2003,6 +2003,54 @@ async def update_quickbooks_settings(
     if not integration:
         raise HTTPException(status_code=404, detail="QuickBooks not connected")
     
+
+@app.get("/auth/stewart-sso")
+def stewart_sso(token: str, db: Session = Depends(get_db)):
+    """SSO from Stewart dashboard - exchange Stewart token for Project-R token"""
+    import httpx
+    
+    # Verify token with Stewart API
+    try:
+        resp = httpx.get(
+            "https://casablancaexpress.com/api/verify.php",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10.0
+        )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid Stewart token")
+        
+        stewart_user = resp.json()
+        if not stewart_user.get("success"):
+            raise HTTPException(status_code=401, detail="Invalid Stewart token")
+        
+        email = stewart_user.get("user", {}).get("email", "").lower()
+        if not email:
+            raise HTTPException(status_code=401, detail="No email in Stewart token")
+        
+        # Find or create local user
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            user = User(
+                email=email,
+                password_hash="stewart_sso",  # Marker for SSO users
+                company_name=stewart_user.get("user", {}).get("name", "Stewart User"),
+                onboarding_step=4,
+                onboarding_complete=True,
+                plan="stewart"
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        
+        # Return redirect with token
+        pr_token = create_token(user.id)
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"/?token={pr_token}")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     integration.auto_sync_enabled = auto_sync_enabled
     integration.sync_frequency_hours = sync_frequency_hours
     db.commit()
