@@ -297,20 +297,61 @@ def signup(req: SignupRequest, db: Session = Depends(get_db), background_tasks: 
 
 @app.post("/auth/login")
 def login(req: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == req.email.lower()).first()
-    if not user or not verify_pw(req.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    email = req.email.lower()
+    user = db.query(User).filter(User.email == email).first()
     
-    return {
-        "token": create_token(user.id),
-        "user": {
-            "email": user.email,
-            "company_name": user.company_name,
-            "onboarding_step": user.onboarding_step,
-            "onboarding_complete": user.onboarding_complete,
-            "plan": user.plan
+    # Try local auth first
+    if user and verify_pw(req.password, user.password_hash):
+        return {
+            "token": create_token(user.id),
+            "user": {
+                "email": user.email,
+                "company_name": user.company_name,
+                "onboarding_step": user.onboarding_step,
+                "onboarding_complete": user.onboarding_complete,
+                "plan": user.plan
+            }
         }
-    }
+    
+    # Try Stewart API as fallback
+    import httpx
+    try:
+        resp = httpx.post(
+            "https://casablancaexpress.com/api/login.php",
+            json={"email": email, "password": req.password},
+            timeout=10.0
+        )
+        if resp.status_code == 200:
+            stewart_data = resp.json()
+            if stewart_data.get("success"):
+                # Create or update local user from Stewart
+                if not user:
+                    user = User(
+                        email=email,
+                        password_hash=hash_pw(req.password),
+                        company_name=stewart_data.get("user", {}).get("name", "Stewart User"),
+                        onboarding_step=4,
+                        onboarding_complete=True,
+                        plan="stewart"
+                    )
+                    db.add(user)
+                    db.commit()
+                    db.refresh(user)
+                
+                return {
+                    "token": create_token(user.id),
+                    "user": {
+                        "email": user.email,
+                        "company_name": user.company_name,
+                        "onboarding_step": user.onboarding_step,
+                        "onboarding_complete": user.onboarding_complete,
+                        "plan": user.plan
+                    }
+                }
+    except:
+        pass
+    
+    raise HTTPException(status_code=401, detail="Invalid credentials")
 
 @app.post("/auth/forgot-password")
 def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
