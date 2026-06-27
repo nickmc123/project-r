@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from .db import engine, get_db
-from .models import Base, User, Transaction, TransactionGroup, ScheduleRule, TrendSentiment, GroupCorrelation, CATEGORIES
+from .models import Base, User, Transaction, TransactionGroup, ScheduleRule, TrendSentiment, GroupCorrelation, UpcomingBill, CATEGORIES
 from .auth import hash_pw, verify_pw, create_token, get_current_user
 from .services.ingest import ingest_bank_csv, ingest_quickbooks_data
 from .services.categorize import (
@@ -242,6 +242,13 @@ class ScheduleRuleRequest(BaseModel):
     rule_params: dict = {}
     amount: float
     priority: str = "must"
+
+class UpcomingBillRequest(BaseModel):
+    name: str
+    amount: float                    # positive dollar amount of the bill (an outflow)
+    due_date: str                    # YYYY-MM-DD
+    recurrence: str = "none"         # none | monthly
+    notes: str = ""
 
 # Routes
 @app.get("/")
@@ -1593,6 +1600,103 @@ def create_schedule_rule(req: ScheduleRuleRequest, user: User = Depends(get_curr
     db.commit()
     db.refresh(rule)
     return {"id": rule.id, "ok": True}
+
+# ============ UPCOMING BILLS ============
+# User-entered future obligations that feed the cash-flow projection.
+
+def _bill_to_dict(b: UpcomingBill) -> dict:
+    return {
+        "id": b.id,
+        "name": b.name,
+        "amount": float(b.amount),
+        "due_date": b.due_date,
+        "recurrence": b.recurrence,
+        "notes": b.notes or "",
+        "is_paid": bool(b.is_paid),
+    }
+
+@app.get("/upcoming-bills")
+def list_upcoming_bills(
+    include_paid: bool = False,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List the user's upcoming bills, soonest due first."""
+    q = db.query(UpcomingBill).filter(UpcomingBill.user_id == user.id)
+    if not include_paid:
+        q = q.filter(UpcomingBill.is_paid == False)  # noqa: E712
+    bills = q.order_by(UpcomingBill.due_date.asc()).all()
+    return [_bill_to_dict(b) for b in bills]
+
+@app.post("/upcoming-bills")
+def create_upcoming_bill(
+    req: UpcomingBillRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Add an upcoming bill that will be subtracted from the forecast on its due date."""
+    name = (req.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Bill name is required")
+    # Validate due_date format (YYYY-MM-DD)
+    try:
+        datetime.strptime(req.due_date, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="due_date must be YYYY-MM-DD")
+    amount = abs(float(req.amount))
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than zero")
+    recurrence = (req.recurrence or "none").lower()
+    if recurrence not in ("none", "monthly"):
+        recurrence = "none"
+
+    bill = UpcomingBill(
+        user_id=user.id,
+        name=name,
+        amount=amount,
+        due_date=req.due_date,
+        recurrence=recurrence,
+        notes=(req.notes or "").strip(),
+        is_paid=False,
+    )
+    db.add(bill)
+    db.commit()
+    db.refresh(bill)
+    return {"ok": True, "bill": _bill_to_dict(bill)}
+
+@app.patch("/upcoming-bills/{bill_id}")
+def update_upcoming_bill(
+    bill_id: int,
+    is_paid: Optional[bool] = Body(None, embed=True),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Mark a bill paid/unpaid. Paid bills drop out of the forecast."""
+    bill = db.query(UpcomingBill).filter(
+        UpcomingBill.id == bill_id,
+        UpcomingBill.user_id == user.id,
+    ).first()
+    if not bill:
+        raise HTTPException(status_code=404, detail="Bill not found")
+    if is_paid is not None:
+        bill.is_paid = bool(is_paid)
+    db.commit()
+    db.refresh(bill)
+    return {"ok": True, "bill": _bill_to_dict(bill)}
+
+@app.delete("/upcoming-bills/{bill_id}")
+def delete_upcoming_bill(
+    bill_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete an upcoming bill."""
+    deleted = db.query(UpcomingBill).filter(
+        UpcomingBill.id == bill_id,
+        UpcomingBill.user_id == user.id,
+    ).delete()
+    db.commit()
+    return {"ok": True, "deleted": deleted}
 
 # Forecast
 @app.get("/forecast")

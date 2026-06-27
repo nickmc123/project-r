@@ -8,7 +8,7 @@ import json
 import statistics
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from ..models import Transaction, TransactionGroup, ScheduleRule, TrendSentiment, CalendarDay
+from ..models import Transaction, TransactionGroup, ScheduleRule, TrendSentiment, CalendarDay, UpcomingBill
 
 def parse_date(s: str) -> date:
     return datetime.strptime(s, "%Y-%m-%d").date()
@@ -136,7 +136,50 @@ def expand_schedule_rule(rule: ScheduleRule, start: date, end: date) -> List[Tup
                     events.append((d, amount, name))
             except:
                 continue
-    
+
+    return events
+
+def expand_upcoming_bills(bills: List["UpcomingBill"], start: date, end: date) -> List[Tuple[date, float, str]]:
+    """Expand user-entered upcoming bills into (date, amount, name) outflow events.
+
+    Each non-recurring bill produces a single event on its due date (if within
+    the window). Monthly-recurring bills repeat on the same day-of-month from
+    their due date through the end of the window. Paid bills are skipped.
+    Returns amounts as positive outflow magnitudes.
+    """
+    events = []
+    for bill in bills:
+        if getattr(bill, "is_paid", False):
+            continue
+        try:
+            due = parse_date(bill.due_date)
+        except Exception:
+            continue
+        amount = abs(float(bill.amount))
+        name = bill.name or "Upcoming bill"
+        recurrence = (getattr(bill, "recurrence", "none") or "none").lower()
+
+        if recurrence == "monthly":
+            # Walk forward month-by-month from the due date, clamping the
+            # day-of-month to valid days (handles 29-31 in short months).
+            target_day = due.day
+            cur = due
+            while cur <= end:
+                if start <= cur <= end:
+                    events.append((cur, amount, name))
+                # Advance to the same day next month
+                if cur.month == 12:
+                    y, m = cur.year + 1, 1
+                else:
+                    y, m = cur.year, cur.month + 1
+                # Clamp day to last valid day of the next month
+                next_first = date(y, m, 1)
+                following = (next_first.replace(day=28) + timedelta(days=4)).replace(day=1)
+                last_day = (following - timedelta(days=1)).day
+                cur = date(y, m, min(target_day, last_day))
+        else:
+            if start <= due <= end:
+                events.append((due, amount, name))
     return events
 
 def analyze_trends(db: Session, user_id: int, group_id: int) -> Dict:
@@ -289,7 +332,23 @@ def compute_forecast(db: Session, user_id: int, horizon_days: int = 90,
                 "name": name,
                 "group_id": rule.group_id
             })
-    
+
+    # Get user-entered upcoming bills and expand them into outflow events.
+    # These are known future obligations the user added by hand; they are
+    # subtracted from projected cash on/after their due date.
+    try:
+        upcoming_bills = db.query(UpcomingBill).filter(
+            UpcomingBill.user_id == user_id,
+            UpcomingBill.is_paid == False  # noqa: E712  (SQLAlchemy needs ==)
+        ).all()
+    except Exception:
+        # Degrade gracefully if the table doesn't exist yet (e.g. pre-migration)
+        upcoming_bills = []
+
+    bill_events = {}  # date -> total outflow amount for that day
+    for bill_date, bill_amount, _bill_name in expand_upcoming_bills(upcoming_bills, today, end_date):
+        bill_events[bill_date] = bill_events.get(bill_date, 0.0) + bill_amount
+
     # Get trend sentiments - first from TransactionGroup columns, then TrendSentiment table
     sentiments = {}
     if apply_sentiments:
@@ -388,7 +447,15 @@ def compute_forecast(db: Session, user_id: int, horizon_days: int = 90,
                 else:
                     day_outflow += abs(event["amount"])
                     day_outflow_adj += abs(event["amount"])
-        
+
+        # Apply user-entered upcoming bills for this date (always outflows).
+        # Affects both baseline and adjusted projections equally so the
+        # forecast cash balance reflects the bill on/after its due date.
+        bill_today = bill_events.get(current_date, 0.0)
+        if bill_today:
+            day_outflow += bill_today
+            day_outflow_adj += bill_today
+
         # Update balances
         baseline_balance += day_inflow - day_outflow
         adjusted_balance += day_inflow_adj - day_outflow_adj

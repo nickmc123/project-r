@@ -160,6 +160,31 @@ class ScheduleRule(Base):
     priority: Mapped[str] = mapped_column(String(16), default="must")
     confidence: Mapped[str] = mapped_column(String(16), default="high")
 
+class UpcomingBill(Base):
+    """User-entered upcoming bills due in the future.
+
+    These are one-off (or optionally recurring) known obligations the user
+    knows about but that aren't yet captured by historical transactions or
+    schedule rules. They are subtracted from projected cash on/after their
+    due date so the forecast reflects them.
+    """
+    __tablename__ = "upcoming_bills"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, index=True)
+
+    name: Mapped[str] = mapped_column(String(128))          # payee / what the bill is for
+    amount: Mapped[float] = mapped_column(Numeric(12, 2))   # always stored positive (an outflow)
+    due_date: Mapped[str] = mapped_column(String(10), index=True)  # YYYY-MM-DD
+
+    # Optional recurrence: none|monthly. "monthly" repeats on the same
+    # day-of-month from due_date through the forecast horizon.
+    recurrence: Mapped[str] = mapped_column(String(16), default="none")
+
+    notes: Mapped[str] = mapped_column(Text, default="")
+    is_paid: Mapped[bool] = mapped_column(Boolean, default=False)  # paid bills drop out of the forecast
+
+    created_at: Mapped[str] = mapped_column(DateTime, server_default=func.now())
+
 class TrendSentiment(Base):
     """User sentiment on trends"""
     __tablename__ = "trend_sentiments"
